@@ -5,7 +5,7 @@ services:
     depends_on:
       - whoami1
       - whoami2
-      - unleash
+      - flyway
     command:
       - "--api.insecure=true"
       - "--providers.docker=true"
