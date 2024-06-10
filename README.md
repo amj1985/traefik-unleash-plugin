@@ -1,11 +1,10 @@
-[![Build status](https://github.mpi-internal.com/scmspain/traefik-unleash-plugin/actions/workflows/main.yml/badge.svg)](https://github.mpi-internal.com/scmspain/traefik-unleash-plugin/actions/workflows/main.yml)
-[![Sonarqube status](https://sonarqube-enterprise.ets.mpi-internal.com/api/project_badges/measure?project=github.mpi-internal.com%3Ascmspain%3Atraefik-unleash-plugin&metric=alert_status&token=sqb_255be217fd8b59bf82d57a4934e36d207860dd29)](https://sonarqube-enterprise.ets.mpi-internal.com/dashboard?id=github.mpi-internal.com%3Ascmspain%3Atraefik-unleash-plugin)
-[![Test coverage](https://sonarqube-enterprise.ets.mpi-internal.com/api/project_badges/measure?project=github.mpi-internal.com%3Ascmspain%3Atraefik-unleash-plugin&metric=coverage&token=sqb_255be217fd8b59bf82d57a4934e36d207860dd29)](https://sonarqube-enterprise.ets.mpi-internal.com/dashboard?id=github.mpi-internal.com%3Ascmspain%3Atraefik-unleash-plugin)
-[![Code Smells](https://sonarqube-enterprise.ets.mpi-internal.com/api/project_badges/measure?project=github.mpi-internal.com%3Ascmspain%3Atraefik-unleash-plugin&metric=code_smells&token=sqb_255be217fd8b59bf82d57a4934e36d207860dd29)](https://sonarqube-enterprise.ets.mpi-internal.com/dashboard?id=github.mpi-internal.com%3Ascmspain%3Atraefik-unleash-plugin)
-[![Vulnerabilities](https://sonarqube-enterprise.ets.mpi-internal.com/api/project_badges/measure?project=github.mpi-internal.com%3Ascmspain%3Atraefik-unleash-plugin&metric=vulnerabilities&token=sqb_255be217fd8b59bf82d57a4934e36d207860dd29)](https://sonarqube-enterprise.ets.mpi-internal.com/dashboard?id=github.mpi-internal.com%3Ascmspain%3Atraefik-unleash-plugin)
-[![Security Rating](https://sonarqube-enterprise.ets.mpi-internal.com/api/project_badges/measure?project=github.mpi-internal.com%3Ascmspain%3Atraefik-unleash-plugin&metric=security_rating&token=sqb_255be217fd8b59bf82d57a4934e36d207860dd29)](https://sonarqube-enterprise.ets.mpi-internal.com/dashboard?id=github.mpi-internal.com%3Ascmspain%3Atraefik-unleash-plugin)
-[![Latest delivery](https://badger.engprod-pro.mpi-internal.com/badge/delivery/scmspain/traefik-unleash-plugin)](https://badger.engprod-pro.mpi-internal.com/redirect/delivery/scmspain/traefik-unleash-plugin)
-[![Badger](https://badger.engprod-pro.mpi-internal.com/badge/engprod/scmspain/traefik-unleash-plugin)](https://badger.engprod-pro.mpi-internal.com/redirect/engprod/scmspain/traefik-unleash-plugin)
+[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=amj1985_traefik-unleash-plugin&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=amj1985_traefik-unleash-plugin)
+[![Coverage](https://sonarcloud.io/api/project_badges/measure?project=amj1985_traefik-unleash-plugin&metric=coverage)](https://sonarcloud.io/summary/new_code?id=amj1985_traefik-unleash-plugin)
+[![Code Smells](https://sonarcloud.io/api/project_badges/measure?project=amj1985_traefik-unleash-plugin&metric=code_smells)](https://sonarcloud.io/summary/new_code?id=amj1985_traefik-unleash-plugin)
+[![Bugs](https://sonarcloud.io/api/project_badges/measure?project=amj1985_traefik-unleash-plugin&metric=bugs)](https://sonarcloud.io/summary/new_code?id=amj1985_traefik-unleash-plugin)
+[![Security Rating](https://sonarcloud.io/api/project_badges/measure?project=amj1985_traefik-unleash-plugin&metric=security_rating)](https://sonarcloud.io/summary/new_code?id=amj1985_traefik-unleash-plugin)
+[![Vulnerabilities](https://sonarcloud.io/api/project_badges/measure?project=amj1985_traefik-unleash-plugin&metric=vulnerabilities)](https://sonarcloud.io/summary/new_code?id=amj1985_traefik-unleash-plugin)
+[![Duplicated Lines (%)](https://sonarcloud.io/api/project_badges/measure?project=amj1985_traefik-unleash-plugin&metric=duplicated_lines_density)](https://sonarcloud.io/summary/new_code?id=amj1985_traefik-unleash-plugin)
 
 # Traefik Unleash Plugin Middleware
 
@@ -15,7 +14,7 @@ This repository contains a Traefik plugin that installs middleware to intercept 
 
 - Intercepts HTTP requests and checks feature flag status from Unleash.
 - Evaluates feature flags globally and by specific user ID.
-- Includes a comprehensive `docker-compose` setup for acceptance testing. 
+- Includes a comprehensive `docker-compose` setup for acceptance testing.
 - Allows for the rewriting of the host in HTTP requests.
 - Allows for the rewriting of the path in HTTP requests.
 
@@ -68,10 +67,10 @@ http:
 1. Clone the repository:
 
 ```bash
-git clone https://github.mpi-internal.com/scmspain/traefik-unleash-plugin.git
+git clone https://github.com/amj1985/traefik-unleash-plugin.git
 ```
 
-1. Start the services with Docker 
+1. Start the services with Docker
 
 ```bash
 docker compose up -d
