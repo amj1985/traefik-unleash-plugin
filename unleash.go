@@ -159,11 +159,11 @@ func (u *Unleash) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 			fmt.Println(jsonMessageFrom(fmt.Sprintf("Executing feature flag: %s", toggle.feature)))
 			if toggle.headers != nil {
 				for _, header := range toggle.headers {
-					if header.context == RequestHeader {
+					switch header.context {
+					case "request":
 						fmt.Println(jsonMessageFrom(fmt.Sprintf("Toggle with feature flag: %s set request header: %s with value: %s", toggle.feature, header.key, header.value)))
 						req.Header.Set(header.key, header.value)
-					}
-					if header.context == ResponseHeader {
+					case "response":
 						fmt.Println(jsonMessageFrom(fmt.Sprintf("Toggle with feature flag: %s set response header: %s with value: %s", toggle.feature, header.key, header.value)))
 						rw.Header().Set(header.key, header.value)
 					}
