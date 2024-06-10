@@ -158,7 +158,7 @@ http:
 
 ## ⚠️ Warning ⚠️
 
-Currently, the unleash gradual rollout strategy (by percentages) cannot be used due to excluding some classes from the vendor due to compatibility issues of Traefik with the Golang package unsafe.
+Currently, unleash gradual rollout strategy (by percentages) cannot be used due to excluding some classes from the vendor due to compatibility issues of Traefik with the Golang package unsafe.
 
 ## Contributing
 
