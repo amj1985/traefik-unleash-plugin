@@ -4,7 +4,7 @@ type: middleware
 
 import: github.com/traefik/unleash
 
-summary: Allow to rewrite host and path from request under a feature flag toggle from Unleash.
+summary: Allow to rewrite host path and headers from request under a feature flag toggle from Unleash.
 
 testData:
   Headers:
