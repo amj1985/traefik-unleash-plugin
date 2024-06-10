@@ -155,40 +155,52 @@ func (u *Unleash) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	fmt.Println(jsonMessageFrom("Executing unleash plugin"))
 	for _, toggle := range u.featureToggles {
 		fmt.Println(jsonMessageFrom(fmt.Sprintf("Evaluating feature flag: %s", toggle.feature)))
-		if evaluateFeatureFlag(toggle, req) {
+		if evaluateFeatureToggle(toggle, req) {
 			fmt.Println(jsonMessageFrom(fmt.Sprintf("Executing feature flag: %s", toggle.feature)))
-			if toggle.headers != nil {
-				for _, header := range toggle.headers {
-					switch header.context {
-					case "request":
-						fmt.Println(jsonMessageFrom(fmt.Sprintf("Toggle with feature flag: %s set request header: %s with value: %s", toggle.feature, header.key, header.value)))
-						req.Header.Set(header.key, header.value)
-					case "response":
-						fmt.Println(jsonMessageFrom(fmt.Sprintf("Toggle with feature flag: %s set response header: %s with value: %s", toggle.feature, header.key, header.value)))
-						rw.Header().Set(header.key, header.value)
-					}
-				}
-			}
-			if toggle.path != nil {
-				fmt.Println(jsonMessageFrom(fmt.Sprintf("Toggle with feature flag: %s rewrite current path with value: %s for: %s", toggle.feature, req.URL.Path, toggle.path.rewrite)))
-				req.URL.Path = replaceNamedParams(toggle.path.value, req.URL.Path, toggle.path.rewrite)
-				req.RequestURI = req.URL.RequestURI()
-			}
-			if toggle.host != nil {
-				fmt.Println(jsonMessageFrom(fmt.Sprintf("Toggle with feature flag: %s rewrite current host with value: %s for: %s", toggle.feature, req.Host, toggle.host.rewrite)))
-				var redirectUrl = &url.URL{
-					Host:   hostFrom(toggle.host.rewrite),
-					Scheme: schemeFrom(toggle.host.rewrite),
-				}
-				fmt.Println(jsonMessageFrom(fmt.Sprintf("Redirect url with value: %s", redirectUrl.String())))
-				req.Host = redirectUrl.Host
-				var nextHandler = httputil.NewSingleHostReverseProxy(redirectUrl)
-				nextHandler.ServeHTTP(rw, req)
-			}
+			evaluateHeadersFromToggle(rw, req, toggle)
+			evaluatePathFromToggle(toggle, req)
+			evaluateHostFromToggle(rw, req, toggle)
 			break
 		}
 	}
 	u.next.ServeHTTP(rw, req)
+}
+
+func evaluateHeadersFromToggle(rw http.ResponseWriter, req *http.Request, toggle FeatureToggle) {
+	if toggle.headers != nil {
+		for _, header := range toggle.headers {
+			switch header.context {
+			case RequestHeader:
+				fmt.Println(jsonMessageFrom(fmt.Sprintf("Toggle with feature flag: %s set request header: %s with value: %s", toggle.feature, header.key, header.value)))
+				req.Header.Set(header.key, header.value)
+			case ResponseHeader:
+				fmt.Println(jsonMessageFrom(fmt.Sprintf("Toggle with feature flag: %s set response header: %s with value: %s", toggle.feature, header.key, header.value)))
+				rw.Header().Set(header.key, header.value)
+			}
+		}
+	}
+}
+
+func evaluatePathFromToggle(toggle FeatureToggle, req *http.Request) {
+	if toggle.path != nil {
+		fmt.Println(jsonMessageFrom(fmt.Sprintf("Toggle with feature flag: %s rewrite current path with value: %s for: %s", toggle.feature, req.URL.Path, toggle.path.rewrite)))
+		req.URL.Path = replaceNamedParams(toggle.path.value, req.URL.Path, toggle.path.rewrite)
+		req.RequestURI = req.URL.RequestURI()
+	}
+}
+
+func evaluateHostFromToggle(rw http.ResponseWriter, req *http.Request, toggle FeatureToggle) {
+	if toggle.host != nil {
+		fmt.Println(jsonMessageFrom(fmt.Sprintf("Toggle with feature flag: %s rewrite current host with value: %s for: %s", toggle.feature, req.Host, toggle.host.rewrite)))
+		var redirectUrl = &url.URL{
+			Host:   hostFrom(toggle.host.rewrite),
+			Scheme: schemeFrom(toggle.host.rewrite),
+		}
+		fmt.Println(jsonMessageFrom(fmt.Sprintf("Redirect url with value: %s", redirectUrl.String())))
+		req.Host = redirectUrl.Host
+		var nextHandler = httputil.NewSingleHostReverseProxy(redirectUrl)
+		nextHandler.ServeHTTP(rw, req)
+	}
 }
 
 func intervalFrom(interval *int) time.Duration {
@@ -223,7 +235,7 @@ func isValidScheme(scheme string) bool {
 	return scheme != "" && (scheme == SchemeHTTP || scheme == SchemeHTTPS)
 }
 
-func evaluateFeatureFlag(toggle FeatureToggle, req *http.Request) bool {
+func evaluateFeatureToggle(toggle FeatureToggle, req *http.Request) bool {
 	return (toggle.host == nil || toggle.host.value.MatchString(req.Host)) && (toggle.path == nil || toggle.path.value.MatchString(req.URL.Path)) && toggle.enabled(req)
 }
 
