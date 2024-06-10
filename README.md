@@ -156,6 +156,10 @@ http:
                 rewrite: "whoami1"
 ```
 
+## ⚠️ Warning ⚠️
+
+Currently, the unleash gradual rollout strategy (by percentages) cannot be used due to excluding some classes from the vendor due to compatibility issues of Traefik with the Golang package unsafe.
+
 ## Contributing
 
 Contributions are welcome! If you want to contribute, please open an issue or a pull request in this repository.
