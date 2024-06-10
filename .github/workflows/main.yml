@@ -31,7 +31,7 @@ jobs:
       - name: Run tests
         run: |
           mkdir -p reports
-          go test -v -p 1 ./... -coverpkg=./... -coverprofile reports/coverage.out -json > reports/test-report.json
+          go test -v -p 1 ./... -coverpkg=./... -coverprofile reports/coverage.out
 
       - name: Run linter
         run: |
