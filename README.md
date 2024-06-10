@@ -6,45 +6,110 @@
 [![Vulnerabilities](https://sonarcloud.io/api/project_badges/measure?project=amj1985_traefik-unleash-plugin&metric=vulnerabilities)](https://sonarcloud.io/summary/new_code?id=amj1985_traefik-unleash-plugin)
 [![Duplicated Lines (%)](https://sonarcloud.io/api/project_badges/measure?project=amj1985_traefik-unleash-plugin&metric=duplicated_lines_density)](https://sonarcloud.io/summary/new_code?id=amj1985_traefik-unleash-plugin)
 
-# Traefik Unleash Plugin Middleware
+# Traefik Unleash Middleware
 
-This repository contains a Traefik plugin that installs middleware to intercept requests and query the Unleash server for feature flag status. The plugin determines whether a feature is active or inactive, and it also supports feature evaluation by user ID.
+This Traefik middleware validates requests against an Unleash (feature flag) server and rewrites the path or host of the request based on input parameters defined in the YAML configuration file.
 
-## Features
+## Table of Contents
 
-- Intercepts HTTP requests and checks feature flag status from Unleash.
-- Evaluates feature flags globally and by specific user ID.
-- Includes a comprehensive `docker-compose` setup for acceptance testing.
-- Allows for the rewriting of the host in HTTP requests.
-- Allows for the rewriting of the path in HTTP requests.
+- [Installation](#installation)
+- [Configuration](#configuration)
+    - [Input Parameters](#input-parameters)
+- [Usage](#usage)
+- [Example](#example)
+- [Contributing](#contributing)
+- [License](#license)
 
-### Prerequisites
+## Installation
 
-- Docker
-- Docker Compose
+1. Clone this repository:
+    ```bash
+    git clone https://github.com/amj1985/traefik-unleash-plugin.git
+    cd traefik-unleash-plugin
+    ```
 
-### Installation
+2. Follow the [Traefik instructions for installing plugins](https://doc.traefik.io/traefik/plugins/overview/).
+
+## Configuration
+
+To configure this middleware, you need to define the parameters in the `dynamic.yml` file.
+
+### Input Parameters
+
+| Parameter              | Type   | Required   | Description                                                          |
+|------------------------|--------|------------|----------------------------------------------------------------------|
+| `url`                  | string | Yes        | URL of the Unleash server                                            |
+| `app`                  | string | Yes        | Name of the application in Unleash                                   |
+| `interval`             | int    | No         | Update interval in seconds                                           |
+| `metrics.interval`     | int    | No         | Metrics reporting interval in seconds                                |
+| `toggles`              | list   | Yes        | List of feature flag toggles                                         |
+| `toggles[].feature`    | string | Yes        | Name of the feature flag                                             |
+| `toggles[].path.value` | string | No         | Path to be validated                                                 |
+| `toggles[].path.rewrite` | string | No       | Path to redirect to if the feature flag is active                    |
+| `toggles[].host.value` | string | No         | Host to be validated                                                 |
+| `toggles[].host.rewrite` | string | No       | Host to redirect to if the feature flag is active                    |
+
+## Usage
+
+1. Define the configuration in the `dynamic.yml` file:
+
+    ```yaml
+    unleash:
+      url: "http://unleash:4242/api/"
+      app: "test-app"
+      interval: 10
+      metrics:
+        interval: 10
+      toggles:
+        - feature: "test-toggle-user-id"
+          path:
+            value: "/foo"
+            rewrite: "/bar"
+          host:
+            value: "localhost"
+            rewrite: "whoami2"
+        - feature: "test-toggle"
+          path:
+            value: "/bar"
+            rewrite: "/foo"
+          host:
+            value: "localhost"
+            rewrite: "whoami2"
+        - feature: "test-toggle-path"
+          path:
+            value: "/john"
+            rewrite: "/doe"
+        - feature: "test-toggle-host"
+          host:
+            value: "localhost"
+            rewrite: "whoami1"
+    ```
+
+2. Apply the middleware to your routers in the Traefik configuration:
+
+    ```yaml
+    http:
+      routers:
+        my-router:
+          rule: "Host(`example.com`)"
+          service: "my-service"
+          middlewares: 
+            - "unleash"
+    ```
+
+## Example
+
+Here is a complete configuration example:
 
 ```yaml
 http:
-  serversTransports:
-    default:
-      insecureSkipVerify: true
-  services:
-    unleash:
-      loadBalancer:
-        servers:
-          - url: "http://whoami"
-        passHostHeader: false
-        serversTransport: default
   routers:
-    unleash:
-      rule: "Host(`localhost`) && Path(`/foo`)"
-      entryPoints:
-        - web
+    my-router:
+      rule: "Host(`example.com`)"
+      service: "my-service"
       middlewares:
-        - unleash
-      service: unleash
+        - "unleash"
+
   middlewares:
     unleash:
       plugin:
@@ -55,23 +120,32 @@ http:
           metrics:
             interval: 10
           toggles:
-            - feature: "test-toggle"
+            - feature: "test-toggle-user-id"
               path:
                 value: "/foo"
                 rewrite: "/bar"
               host:
                 value: "localhost"
-                rewrite: "example.com"
+                rewrite: "whoami2"
+            - feature: "test-toggle"
+              path:
+                value: "/bar"
+                rewrite: "/foo"
+              host:
+                value: "localhost"
+                rewrite: "whoami2"
+            - feature: "test-toggle-path"
+              path:
+                value: "/john"
+                rewrite: "/doe"
+            - feature: "test-toggle-host"
+              host:
+                value: "localhost"
+                rewrite: "whoami1"
 ```
 
-1. Clone the repository:
+## Contributing
+Contributions are welcome! If you want to contribute, please open an issue or a pull request in this repository.
 
-```bash
-git clone https://github.com/amj1985/traefik-unleash-plugin.git
-```
-
-1. Start the services with Docker
-
-```bash
-docker compose up -d
-```
+## License
+This project is licensed under the MIT License.
