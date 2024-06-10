@@ -19,6 +19,8 @@ const (
 	SchemeHTTP      = "http"
 	SchemeHTTPS     = "https"
 	DefaultInterval = 10
+	RequestHeader   = "request"
+	ResponseHeader  = "response"
 )
 
 type LogEntry struct {
@@ -34,6 +36,11 @@ type Config struct {
 		Interval *int `yaml:"interval"`
 	} `json:"metrics"`
 	Toggles []struct {
+		Headers *[]struct {
+			Key     string `yaml:"key"`
+			Value   string `yaml:"value"`
+			Context string `yaml:"context"`
+		} `json:"headers"`
 		Path *struct {
 			Value   string `yaml:"value"`
 			Rewrite string `yaml:"rewrite"`
@@ -60,10 +67,17 @@ type Host struct {
 	rewrite string
 }
 
+type Header struct {
+	key     string
+	value   string
+	context string
+}
+
 type FeatureToggle struct {
 	path    *Path
 	feature string
 	host    *Host
+	headers []*Header
 }
 
 func (toggle *FeatureToggle) enabled(r *http.Request) bool {
@@ -113,10 +127,21 @@ func New(_ context.Context, next http.Handler, config *Config, name string) (htt
 				rewrite: t.Host.Rewrite,
 			}
 		}
+		var headersCollection []*Header
+		if t.Headers != nil {
+			for _, h := range *t.Headers {
+				headersCollection = append(headersCollection, &Header{
+					key:     h.Key,
+					value:   h.Value,
+					context: h.Context,
+				})
+			}
+		}
 		toggles = append(toggles, FeatureToggle{
 			path:    path,
 			host:    host,
 			feature: t.Feature,
+			headers: headersCollection,
 		})
 	}
 	return &Unleash{
@@ -132,6 +157,18 @@ func (u *Unleash) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		fmt.Println(jsonMessageFrom(fmt.Sprintf("Evaluating feature flag: %s", toggle.feature)))
 		if evaluateFeatureFlag(toggle, req) {
 			fmt.Println(jsonMessageFrom(fmt.Sprintf("Executing feature flag: %s", toggle.feature)))
+			if toggle.headers != nil {
+				for _, header := range toggle.headers {
+					if header.context == RequestHeader {
+						fmt.Println(jsonMessageFrom(fmt.Sprintf("Toggle with feature flag: %s set request header: %s with value: %s", toggle.feature, header.key, header.value)))
+						req.Header.Set(header.key, header.value)
+					}
+					if header.context == ResponseHeader {
+						fmt.Println(jsonMessageFrom(fmt.Sprintf("Toggle with feature flag: %s set response header: %s with value: %s", toggle.feature, header.key, header.value)))
+						rw.Header().Set(header.key, header.value)
+					}
+				}
+			}
 			if toggle.path != nil {
 				fmt.Println(jsonMessageFrom(fmt.Sprintf("Toggle with feature flag: %s rewrite current path with value: %s for: %s", toggle.feature, req.URL.Path, toggle.path.rewrite)))
 				req.URL.Path = replaceNamedParams(toggle.path.value, req.URL.Path, toggle.path.rewrite)

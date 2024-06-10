@@ -8,7 +8,8 @@
 
 # Traefik Unleash Middleware
 
-This Traefik middleware validates requests against an Unleash (feature flag) server and rewrites the path or host of the request based on input parameters defined in the YAML configuration file.
+This Traefik middleware validates requests against an Unleash (feature flag) server and rewrites the path, headers and host of the
+request based on input parameters defined in the YAML configuration file.
 
 ## Table of Contents
 
@@ -36,18 +37,22 @@ To configure this middleware, you need to define the parameters in the `dynamic.
 
 ### Input Parameters
 
-| Parameter              | Type   | Required   | Description                                                          |
-|------------------------|--------|------------|----------------------------------------------------------------------|
-| `url`                  | string | Yes        | URL of the Unleash server                                            |
-| `app`                  | string | Yes        | Name of the application in Unleash                                   |
-| `interval`             | int    | No         | Update interval in seconds                                           |
-| `metrics.interval`     | int    | No         | Metrics reporting interval in seconds                                |
-| `toggles`              | list   | Yes        | List of feature flag toggles                                         |
-| `toggles[].feature`    | string | Yes        | Name of the feature flag                                             |
-| `toggles[].path.value` | string | No         | Path to be validated                                                 |
-| `toggles[].path.rewrite` | string | No       | Path to redirect to if the feature flag is active                    |
-| `toggles[].host.value` | string | No         | Host to be validated                                                 |
-| `toggles[].host.rewrite` | string | No       | Host to redirect to if the feature flag is active                    |
+| Parameter                     | Type   | Required | Description                                            |
+|-------------------------------|--------|----------|--------------------------------------------------------|
+| `url`                         | string | Yes      | URL of the Unleash server                              |
+| `app`                         | string | Yes      | Name of the application in Unleash                     |
+| `interval`                    | int    | No       | Update interval in seconds                             |
+| `metrics.interval`            | int    | No       | Metrics reporting interval in seconds                  |
+| `toggles`                     | list   | Yes      | List of feature flag toggles                           |
+| `toggles[].feature`           | string | Yes      | Name of the feature flag                               |
+| `toggles[].path.value`        | string | No       | Path to be validated                                   |
+| `toggles[].path.rewrite`      | string | No       | Path to redirect to if the feature flag is active      |
+| `toggles[].host.value`        | string | No       | Host to be validated                                   |
+| `toggles[].host.rewrite`      | string | No       | Host to redirect to if the feature flag is active      |
+| `toggles[].headers`           | list   | No       | List of headers to be added to the request or response |
+| `toggles[].headers[].key`     | string | Yes      | Header key                                             |
+| `toggles[].headers[].value`   | string | Yes      | Header value                                           |
+| `toggles[].headers[].context` | string | Yes      | Context of the header (either "request" or "response") |
 
 ## Usage
 
@@ -127,6 +132,13 @@ http:
               host:
                 value: "localhost"
                 rewrite: "whoami2"
+              headers:
+                - key: "X-Foo"
+                  value: "Bar"
+                  context: "request"
+                - key: "X-Served-By"
+                  value: "whoami2"
+                  context: "response"
             - feature: "test-toggle"
               path:
                 value: "/bar"
@@ -145,7 +157,9 @@ http:
 ```
 
 ## Contributing
+
 Contributions are welcome! If you want to contribute, please open an issue or a pull request in this repository.
 
 ## License
+
 This project is licensed under the MIT License.
