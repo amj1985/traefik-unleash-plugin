@@ -1,0 +1,51 @@
+http:
+  serversTransports:
+    default:
+      insecureSkipVerify: true
+  services:
+    unleash:
+      loadBalancer:
+        servers:
+          - url: "http://whoami1"
+        passHostHeader: true
+        serversTransport: default
+  routers:
+    unleash:
+      rule: "Host(`localhost`)"
+      entryPoints:
+        - web
+      middlewares:
+        - unleash
+      service: unleash
+  middlewares:
+    unleash:
+      plugin:
+        unleash:
+          url: "http://unleash:4242/api/"
+          app: "test-app"
+          interval: 10
+          metrics:
+            interval: 10
+          toggles:
+            - feature: "test-toggle-user-id"
+              path:
+                value: "/foo"
+                rewrite: "/bar"
+              host:
+                value: "localhost"
+                rewrite: "whoami2"
+            - feature: "test-toggle"
+              path:
+                value: "/bar"
+                rewrite: "/foo"
+              host:
+                value: "localhost"
+                rewrite: "whoami2"
+            - feature: "test-toggle-path"
+              path:
+                value: "/john"
+                rewrite: "/doe"
+            - feature: "test-toggle-host"
+              host:
+                value: "localhost"
+                rewrite: "whoami1"

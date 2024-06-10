@@ -1,0 +1,81 @@
+services:
+  traefik:
+    image: "traefik:v3.0"
+    container_name: "traefik"
+    depends_on:
+      - whoami1
+      - whoami2
+      - flyway
+    command:
+      - "--api.insecure=true"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=true"
+      - "--configFile=/etc/traefik/traefik.yml"
+    ports:
+      - "80:80"
+      - "8080:8080"
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+      - "./config/traefik.yml:/etc/traefik/traefik.yml:ro"
+      - "./config/dynamic.yml:/etc/traefik/dynamic.yml:ro"
+      - "./:/plugins-local/src/github.com/traefik/unleash/"
+    networks:
+      - default
+
+  whoami1:
+    image: "traefik/whoami"
+    container_name: "whoami1"
+    networks:
+      - default
+
+  whoami2:
+    image: "traefik/whoami"
+    container_name: "whoami2"
+    networks:
+      - default
+
+  unleash:
+    container_name: unleash
+    image: unleashorg/unleash-server:4.8.2
+    build: .
+    ports:
+      - "4242:4242"
+    environment:
+      - ENVIRONMENT=dev
+      - DATABASE_HOST=postgresql
+      - DATABASE_NAME=commonFeatureToggles
+      - DATABASE_USERNAME=featuretoggles
+      - DATABASE_PASSWORD=develop
+      - DATABASE_SSL=false
+      - AUTH_TYPE=none
+    depends_on:
+      - postgresql
+    networks:
+      - default
+
+  postgresql:
+    container_name: postgresql
+    image: postgres:16.1
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: featuretoggles
+      POSTGRES_PASSWORD: develop
+      POSTGRES_DB: commonFeatureToggles
+    restart: always
+    networks:
+      - default
+
+  flyway:
+    container_name: flyway
+    image: flyway/flyway:latest
+    depends_on:
+      - unleash
+    volumes:
+      - ./migrations:/flyway/sql
+    command: ["migrate", "-url=jdbc:postgresql://postgresql:5432/commonFeatureToggles", "-user=featuretoggles", "-password=develop", "-locations=filesystem:/flyway/sql", "-baselineOnMigrate=true" ]
+    networks:
+      - default
+
+networks:
+  default:

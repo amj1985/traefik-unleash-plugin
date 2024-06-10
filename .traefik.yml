@@ -1,0 +1,11 @@
+displayName: Unleash plugin
+
+type: middleware
+
+import: github.com/traefik/unleash
+
+summary: Allow to rewrite host and path from request under a feature flag toggle from Unleash.
+
+testData:
+  Headers:
+    X-Unleash-User-Id: 12345

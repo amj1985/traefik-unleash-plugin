@@ -1,0 +1,20 @@
+entryPoints:
+  web:
+    address: ":80"
+
+api:
+  dashboard: true
+  insecure: true
+
+
+providers:
+  file:
+    filename: "/etc/traefik/dynamic.yml"
+
+log:
+  level: TRACE
+
+experimental:
+  localPlugins:
+    unleash:
+      moduleName: "github.com/traefik/unleash"

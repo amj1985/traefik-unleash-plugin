@@ -1,0 +1,22 @@
+# Binaries for programs and plugins
+.idea
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool, specifically when used with LiteIDE
+*.out
+
+# Dependency directories (remove the comment below to include it)
+# vendor/
+
+# Unleash mock depends on stretchr/testing which has a transitive dependency to unsafe which is not supported by traefik
+vendor/github.com/Unleash/unleash-client-go/v4/unleash_mock.go
+vendor/github.com/twmb/murmur3/murmur128_amd64.s
+vendor/github.com/twmb/murmur3/murmur128_decl.go
+vendor/github.com/twmb/murmur3/murmur64.go
