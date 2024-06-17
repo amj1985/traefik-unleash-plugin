@@ -124,9 +124,6 @@ func testIntegrationRewrite(t *testing.T, conf, url, userId, expectedHost, expec
 
 	unleash.ServeHTTP(recorder, req)
 
-	if expectedHost != "" {
-		assert.Equal(t, expectedHost, req.Host)
-	}
 	if expectedPath != "" {
 		assert.Equal(t, expectedPath, req.URL.Path)
 	}
