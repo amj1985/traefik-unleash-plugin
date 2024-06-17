@@ -3,7 +3,7 @@ module traefik_unleash
 go 1.22
 
 require (
-	github.com/Unleash/unleash-client-go/v4 v4.1.0
+	github.com/Unleash/unleash-client-go/v4 v4.1.1
 	github.com/google/uuid v1.6.0
 	github.com/stretchr/testify v1.9.0
 	github.com/testcontainers/testcontainers-go v0.31.0

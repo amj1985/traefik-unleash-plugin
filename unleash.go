@@ -197,9 +197,11 @@ func evaluateHostFromToggle(rw http.ResponseWriter, req *http.Request, toggle Fe
 			Scheme: schemeFrom(toggle.host.rewrite),
 		}
 		fmt.Println(jsonMessageFrom(fmt.Sprintf("Redirect url with value: %s", redirectUrl.String())))
-		req.Host = redirectUrl.Host
+		var newRequest = req.Clone(context.Background())
+		newRequest.Host = redirectUrl.Host
 		var nextHandler = httputil.NewSingleHostReverseProxy(redirectUrl)
-		nextHandler.ServeHTTP(rw, req)
+		nextHandler.ServeHTTP(rw, newRequest)
+		return
 	}
 }
 
@@ -236,7 +238,10 @@ func isValidScheme(scheme string) bool {
 }
 
 func evaluateFeatureToggle(toggle FeatureToggle, req *http.Request) bool {
-	return (toggle.host == nil || toggle.host.value.MatchString(req.Host)) && (toggle.path == nil || toggle.path.value.MatchString(req.URL.Path)) && toggle.enabled(req)
+	return (toggle.host == nil || toggle.host.value.MatchString(req.Host)) &&
+		(toggle.path == nil || toggle.path.value.MatchString(req.URL.Path)) &&
+		(toggle.headers == nil || len(toggle.headers) > 0) &&
+		toggle.enabled(req)
 }
 
 func replaceNamedParams(r *regexp.Regexp, path string, rewrite string) string {
@@ -248,5 +253,6 @@ func replaceNamedParams(r *regexp.Regexp, path string, rewrite string) string {
 			}
 		}
 	}
-	return rewrite
+	remainingPath := r.ReplaceAllString(path, "")
+	return rewrite + remainingPath
 }
