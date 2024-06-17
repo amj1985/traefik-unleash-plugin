@@ -164,7 +164,6 @@ func (u *Unleash) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 				var redirectUrl = &url.URL{
 					Host:   hostFrom(toggle.host.rewrite),
 					Scheme: schemeFrom(toggle.host.rewrite),
-					Path:   req.URL.Path,
 				}
 				fmt.Println(jsonMessageFrom(fmt.Sprintf("Redirect url with value: %s", redirectUrl.String())))
 				var newRequest = req.Clone(context.Background())
