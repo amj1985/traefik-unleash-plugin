@@ -159,7 +159,19 @@ func (u *Unleash) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 			fmt.Println(jsonMessageFrom(fmt.Sprintf("Executing feature flag: %s", toggle.feature)))
 			evaluateHeadersFromToggle(rw, req, toggle)
 			evaluatePathFromToggle(toggle, req)
-			evaluateHostFromToggle(rw, req, toggle)
+			if toggle.host != nil {
+				fmt.Println(jsonMessageFrom(fmt.Sprintf("Toggle with feature flag: %s rewrite current host with value: %s for: %s", toggle.feature, req.Host, toggle.host.rewrite)))
+				var redirectUrl = &url.URL{
+					Host:   hostFrom(toggle.host.rewrite),
+					Scheme: schemeFrom(toggle.host.rewrite),
+				}
+				fmt.Println(jsonMessageFrom(fmt.Sprintf("Redirect url with value: %s", redirectUrl.String())))
+				var newRequest = req.Clone(context.Background())
+				newRequest.Host = redirectUrl.Host
+				var nextHandler = httputil.NewSingleHostReverseProxy(redirectUrl)
+				nextHandler.ServeHTTP(rw, newRequest)
+				return
+			}
 			break
 		}
 	}
@@ -186,20 +198,6 @@ func evaluatePathFromToggle(toggle FeatureToggle, req *http.Request) {
 		fmt.Println(jsonMessageFrom(fmt.Sprintf("Toggle with feature flag: %s rewrite current path with value: %s for: %s", toggle.feature, req.URL.Path, toggle.path.rewrite)))
 		req.URL.Path = replaceNamedParams(toggle.path.value, req.URL.Path, toggle.path.rewrite)
 		req.RequestURI = req.URL.RequestURI()
-	}
-}
-
-func evaluateHostFromToggle(rw http.ResponseWriter, req *http.Request, toggle FeatureToggle) {
-	if toggle.host != nil {
-		fmt.Println(jsonMessageFrom(fmt.Sprintf("Toggle with feature flag: %s rewrite current host with value: %s for: %s", toggle.feature, req.Host, toggle.host.rewrite)))
-		var redirectUrl = &url.URL{
-			Host:   hostFrom(toggle.host.rewrite),
-			Scheme: schemeFrom(toggle.host.rewrite),
-		}
-		fmt.Println(jsonMessageFrom(fmt.Sprintf("Redirect url with value: %s", redirectUrl.String())))
-		req.Host = redirectUrl.Host
-		var nextHandler = httputil.NewSingleHostReverseProxy(redirectUrl)
-		nextHandler.ServeHTTP(rw, req)
 	}
 }
 
@@ -236,7 +234,10 @@ func isValidScheme(scheme string) bool {
 }
 
 func evaluateFeatureToggle(toggle FeatureToggle, req *http.Request) bool {
-	return (toggle.host == nil || toggle.host.value.MatchString(req.Host)) && (toggle.path == nil || toggle.path.value.MatchString(req.URL.Path)) && toggle.enabled(req)
+	return (toggle.host == nil || toggle.host.value.MatchString(req.Host)) &&
+		(toggle.path == nil || toggle.path.value.MatchString(req.URL.Path)) &&
+		(toggle.headers == nil || len(toggle.headers) > 0) &&
+		toggle.enabled(req)
 }
 
 func replaceNamedParams(r *regexp.Regexp, path string, rewrite string) string {
@@ -248,5 +249,6 @@ func replaceNamedParams(r *regexp.Regexp, path string, rewrite string) string {
 			}
 		}
 	}
-	return rewrite
+	remainingPath := r.ReplaceAllString(path, "")
+	return rewrite + remainingPath
 }

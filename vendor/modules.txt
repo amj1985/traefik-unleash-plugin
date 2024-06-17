@@ -26,7 +26,7 @@ github.com/Microsoft/go-winio/pkg/guid
 # github.com/Microsoft/hcsshim v0.11.4
 ## explicit; go 1.18
 github.com/Microsoft/hcsshim/osversion
-# github.com/Unleash/unleash-client-go/v4 v4.1.0
+# github.com/Unleash/unleash-client-go/v4 v4.1.1
 ## explicit; go 1.13
 github.com/Unleash/unleash-client-go/v4
 github.com/Unleash/unleash-client-go/v4/api
