@@ -176,7 +176,6 @@ func evaluateHostFromToggle(rw http.ResponseWriter, req *http.Request, toggle Fe
 			Host:   hostFrom(toggle.host.rewrite),
 			Scheme: schemeFrom(toggle.host.rewrite),
 		}
-		fmt.Println(jsonMessageFrom(fmt.Sprintf("Redirect url with value: %s", redirectUrl.String())))
 		var newRequest = req.Clone(context.Background())
 		newRequest.Host = redirectUrl.Host
 		var nextHandler = httputil.NewSingleHostReverseProxy(redirectUrl)
