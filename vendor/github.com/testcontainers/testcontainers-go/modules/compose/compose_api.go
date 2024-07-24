@@ -16,14 +16,14 @@ import (
 	"github.com/compose-spec/compose-go/v2/types"
 	"github.com/docker/cli/cli/command"
 	"github.com/docker/compose/v2/pkg/api"
-	dockertypes "github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/filters"
+	dockernetwork "github.com/docker/docker/api/types/network"
 	"github.com/docker/docker/client"
 	"golang.org/x/sync/errgroup"
 
-	testcontainers "github.com/testcontainers/testcontainers-go"
-	wait "github.com/testcontainers/testcontainers-go/wait"
+	"github.com/testcontainers/testcontainers-go"
+	"github.com/testcontainers/testcontainers-go/wait"
 )
 
 type stackUpOptionFunc func(s *stackUpOptions)
@@ -126,7 +126,7 @@ func (r ComposeStackReaders) applyToComposeStack(o *composeStackOptions) error {
 	for i, reader := range r {
 		tmp := os.TempDir()
 		tmp = filepath.Join(tmp, strconv.FormatInt(time.Now().UnixNano(), 10))
-		err := os.MkdirAll(tmp, 0755)
+		err := os.MkdirAll(tmp, 0o755)
 		if err != nil {
 			return fmt.Errorf("failed to create temporary directory: %w", err)
 		}
@@ -135,12 +135,12 @@ func (r ComposeStackReaders) applyToComposeStack(o *composeStackOptions) error {
 
 		bs, err := io.ReadAll(reader)
 		if err != nil {
-			fmt.Errorf("failed to read from reader: %w", err)
+			return fmt.Errorf("failed to read from reader: %w", err)
 		}
 
-		err = os.WriteFile(filepath.Join(tmp, name), bs, 0644)
+		err = os.WriteFile(filepath.Join(tmp, name), bs, 0o644)
 		if err != nil {
-			fmt.Errorf("failed to write to temporary file: %w", err)
+			return fmt.Errorf("failed to write to temporary file: %w", err)
 		}
 
 		f[i] = filepath.Join(tmp, name)
@@ -149,7 +149,7 @@ func (r ComposeStackReaders) applyToComposeStack(o *composeStackOptions) error {
 		o.temporaryPaths[f[i]] = true
 	}
 
-	o.Paths = f
+	o.Paths = append(o.Paths, f...)
 
 	return nil
 }
@@ -157,7 +157,7 @@ func (r ComposeStackReaders) applyToComposeStack(o *composeStackOptions) error {
 type ComposeStackFiles []string
 
 func (f ComposeStackFiles) applyToComposeStack(o *composeStackOptions) error {
-	o.Paths = f
+	o.Paths = append(o.Paths, f...)
 	return nil
 }
 
@@ -439,19 +439,17 @@ func (d *dockerCompose) lookupContainer(ctx context.Context, svcName string) (*t
 	d.containersLock.Lock()
 	defer d.containersLock.Unlock()
 
-	if container, ok := d.containers[svcName]; ok {
-		return container, nil
+	if ctr, ok := d.containers[svcName]; ok {
+		return ctr, nil
 	}
 
-	listOptions := container.ListOptions{
+	containers, err := d.dockerClient.ContainerList(ctx, container.ListOptions{
 		All: true,
 		Filters: filters.NewArgs(
 			filters.Arg("label", fmt.Sprintf("%s=%s", api.ProjectLabel, d.name)),
 			filters.Arg("label", fmt.Sprintf("%s=%s", api.ServiceLabel, svcName)),
 		),
-	}
-
-	containers, err := d.dockerClient.ContainerList(ctx, listOptions)
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -461,11 +459,11 @@ func (d *dockerCompose) lookupContainer(ctx context.Context, svcName string) (*t
 	}
 
 	containerInstance := containers[0]
-	container := &testcontainers.DockerContainer{
+	ctr := &testcontainers.DockerContainer{
 		ID:    containerInstance.ID,
 		Image: containerInstance.Image,
 	}
-	container.SetLogger(d.logger)
+	ctr.SetLogger(d.logger)
 
 	dockerProvider, err := testcontainers.NewDockerProvider(testcontainers.WithLogger(d.logger))
 	if err != nil {
@@ -474,24 +472,22 @@ func (d *dockerCompose) lookupContainer(ctx context.Context, svcName string) (*t
 
 	dockerProvider.SetClient(d.dockerClient)
 
-	container.SetProvider(dockerProvider)
+	ctr.SetProvider(dockerProvider)
 
-	d.containers[svcName] = container
+	d.containers[svcName] = ctr
 
-	return container, nil
+	return ctr, nil
 }
 
 func (d *dockerCompose) lookupNetworks(ctx context.Context) error {
 	d.containersLock.Lock()
 	defer d.containersLock.Unlock()
 
-	listOptions := dockertypes.NetworkListOptions{
+	networks, err := d.dockerClient.NetworkList(ctx, dockernetwork.ListOptions{
 		Filters: filters.NewArgs(
 			filters.Arg("label", fmt.Sprintf("%s=%s", api.ProjectLabel, d.name)),
 		),
-	}
-
-	networks, err := d.dockerClient.NetworkList(ctx, listOptions)
+	})
 	if err != nil {
 		return err
 	}

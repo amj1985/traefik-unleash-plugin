@@ -18,9 +18,8 @@ import (
 	"github.com/docker/buildx/util/imagetools"
 	"github.com/docker/buildx/util/progress"
 	"github.com/docker/cli/opts"
-	dockertypes "github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
-	imagetypes "github.com/docker/docker/api/types/image"
+	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/api/types/mount"
 	"github.com/docker/docker/api/types/network"
 	"github.com/docker/docker/api/types/system"
@@ -77,7 +76,7 @@ func (d *Driver) Bootstrap(ctx context.Context, l progress.Logger) error {
 			return err
 		}
 		return sub.Wrap("starting container "+d.Name, func() error {
-			if err := d.start(ctx, sub); err != nil {
+			if err := d.start(ctx); err != nil {
 				return err
 			}
 			return d.wait(ctx, sub)
@@ -96,7 +95,7 @@ func (d *Driver) create(ctx context.Context, l progress.SubLogger) error {
 		if err != nil {
 			return err
 		}
-		rc, err := d.DockerAPI.ImageCreate(ctx, imageName, imagetypes.CreateOptions{
+		rc, err := d.DockerAPI.ImageCreate(ctx, imageName, image.CreateOptions{
 			RegistryAuth: ra,
 		})
 		if err != nil {
@@ -188,7 +187,7 @@ func (d *Driver) create(ctx context.Context, l progress.SubLogger) error {
 			if err := d.copyToContainer(ctx, d.InitConfig.Files); err != nil {
 				return err
 			}
-			if err := d.start(ctx, l); err != nil {
+			if err := d.start(ctx); err != nil {
 				return err
 			}
 		}
@@ -203,14 +202,12 @@ func (d *Driver) wait(ctx context.Context, l progress.SubLogger) error {
 		bufStderr := &bytes.Buffer{}
 		if err := d.run(ctx, []string{"buildctl", "debug", "workers"}, bufStdout, bufStderr); err != nil {
 			if try > 15 {
-				if err != nil {
-					d.copyLogs(context.TODO(), l)
-					if bufStdout.Len() != 0 {
-						l.Log(1, bufStdout.Bytes())
-					}
-					if bufStderr.Len() != 0 {
-						l.Log(2, bufStderr.Bytes())
-					}
+				d.copyLogs(context.TODO(), l)
+				if bufStdout.Len() != 0 {
+					l.Log(1, bufStdout.Bytes())
+				}
+				if bufStderr.Len() != 0 {
+					l.Log(2, bufStderr.Bytes())
 				}
 				return err
 			}
@@ -258,17 +255,16 @@ func (d *Driver) copyToContainer(ctx context.Context, files map[string][]byte) e
 	defer srcArchive.Close()
 
 	baseDir := path.Dir(confutil.DefaultBuildKitConfigDir)
-	return d.DockerAPI.CopyToContainer(ctx, d.Name, baseDir, srcArchive, dockertypes.CopyToContainerOptions{})
+	return d.DockerAPI.CopyToContainer(ctx, d.Name, baseDir, srcArchive, container.CopyToContainerOptions{})
 }
 
 func (d *Driver) exec(ctx context.Context, cmd []string) (string, net.Conn, error) {
-	execConfig := dockertypes.ExecConfig{
+	response, err := d.DockerAPI.ContainerExecCreate(ctx, d.Name, container.ExecOptions{
 		Cmd:          cmd,
 		AttachStdin:  true,
 		AttachStdout: true,
 		AttachStderr: true,
-	}
-	response, err := d.DockerAPI.ContainerExecCreate(ctx, d.Name, execConfig)
+	})
 	if err != nil {
 		return "", nil, err
 	}
@@ -278,7 +274,7 @@ func (d *Driver) exec(ctx context.Context, cmd []string) (string, net.Conn, erro
 		return "", nil, errors.New("exec ID empty")
 	}
 
-	resp, err := d.DockerAPI.ContainerExecAttach(ctx, execID, dockertypes.ExecStartCheck{})
+	resp, err := d.DockerAPI.ContainerExecAttach(ctx, execID, container.ExecStartOptions{})
 	if err != nil {
 		return "", nil, err
 	}
@@ -304,7 +300,7 @@ func (d *Driver) run(ctx context.Context, cmd []string, stdout, stderr io.Writer
 	return nil
 }
 
-func (d *Driver) start(ctx context.Context, l progress.SubLogger) error {
+func (d *Driver) start(ctx context.Context) error {
 	return d.DockerAPI.ContainerStart(ctx, d.Name, container.StartOptions{})
 }
 

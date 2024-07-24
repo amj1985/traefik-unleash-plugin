@@ -31,6 +31,7 @@ import (
 	containerType "github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/filters"
 	imageapi "github.com/docker/docker/api/types/image"
+	"github.com/docker/docker/api/types/network"
 	"github.com/docker/docker/errdefs"
 	"golang.org/x/sync/errgroup"
 )
@@ -193,7 +194,7 @@ func (s *composeService) ensureNetworksDown(ctx context.Context, project *types.
 }
 
 func (s *composeService) removeNetwork(ctx context.Context, composeNetworkName string, projectName string, name string, w progress.Writer) error {
-	networks, err := s.apiClient().NetworkList(ctx, moby.NetworkListOptions{
+	networks, err := s.apiClient().NetworkList(ctx, network.ListOptions{
 		Filters: filters.NewArgs(
 			projectFilter(projectName),
 			networkFilter(composeNetworkName)),
@@ -214,7 +215,7 @@ func (s *composeService) removeNetwork(ctx context.Context, composeNetworkName s
 		if net.Name != name {
 			continue
 		}
-		network, err := s.apiClient().NetworkInspect(ctx, net.ID, moby.NetworkInspectOptions{})
+		nw, err := s.apiClient().NetworkInspect(ctx, net.ID, network.InspectOptions{})
 		if errdefs.IsNotFound(err) {
 			w.Event(progress.NewEvent(eventName, progress.Warning, "No resource found to remove"))
 			return nil
@@ -222,7 +223,7 @@ func (s *composeService) removeNetwork(ctx context.Context, composeNetworkName s
 		if err != nil {
 			return err
 		}
-		if len(network.Containers) > 0 {
+		if len(nw.Containers) > 0 {
 			w.Event(progress.NewEvent(eventName, progress.Warning, "Resource is still in use"))
 			found++
 			continue
@@ -326,6 +327,10 @@ func (s *composeService) stopAndRemoveContainer(ctx context.Context, container m
 	w := progress.ContextWriter(ctx)
 	eventName := getContainerProgressName(container)
 	err := s.stopContainer(ctx, w, container, timeout)
+	if errdefs.IsNotFound(err) {
+		w.Event(progress.RemovedEvent(eventName))
+		return nil
+	}
 	if err != nil {
 		return err
 	}

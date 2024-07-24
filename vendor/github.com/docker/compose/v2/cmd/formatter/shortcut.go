@@ -73,7 +73,7 @@ func (ke *KeyboardError) error() string {
 type KeyboardWatch struct {
 	Watcher  watch.Notify
 	Watching bool
-	WatchFn  func(ctx context.Context, project *types.Project, services []string, options api.WatchOptions) error
+	WatchFn  func(ctx context.Context, doneCh chan bool, project *types.Project, services []string, options api.WatchOptions) error
 	Ctx      context.Context
 	Cancel   context.CancelFunc
 }
@@ -106,6 +106,7 @@ type LogKeyboard struct {
 	Watch                 KeyboardWatch
 	IsDockerDesktopActive bool
 	IsWatchConfigured     bool
+	IsDDComposeUIActive   bool
 	logLevel              KEYBOARD_LOG_LEVEL
 	signalChannel         chan<- os.Signal
 }
@@ -113,9 +114,10 @@ type LogKeyboard struct {
 var KeyboardManager *LogKeyboard
 var eg multierror.Group
 
-func NewKeyboardManager(ctx context.Context, isDockerDesktopActive, isWatchConfigured bool,
+func NewKeyboardManager(ctx context.Context, isDockerDesktopActive, isWatchConfigured, isDockerDesktopConfigActive bool,
 	sc chan<- os.Signal,
 	watchFn func(ctx context.Context,
+		doneCh chan bool,
 		project *types.Project,
 		services []string,
 		options api.WatchOptions,
@@ -124,6 +126,7 @@ func NewKeyboardManager(ctx context.Context, isDockerDesktopActive, isWatchConfi
 	km := LogKeyboard{}
 	km.IsDockerDesktopActive = isDockerDesktopActive
 	km.IsWatchConfigured = isWatchConfigured
+	km.IsDDComposeUIActive = isDockerDesktopConfigActive
 	km.logLevel = INFO
 
 	km.Watch.Watching = false
@@ -192,8 +195,16 @@ func (lk *LogKeyboard) navigationMenu() string {
 	if lk.IsDockerDesktopActive {
 		openDDInfo = shortcutKeyColor("v") + navColor(" View in Docker Desktop")
 	}
-	var watchInfo string
+
+	var openDDUI string
 	if openDDInfo != "" {
+		openDDUI = navColor("   ")
+	}
+	if lk.IsDDComposeUIActive {
+		openDDUI = openDDUI + shortcutKeyColor("o") + navColor(" View Config")
+	}
+	var watchInfo string
+	if openDDInfo != "" || openDDUI != "" {
 		watchInfo = navColor("   ")
 	}
 	var isEnabled = " Enable"
@@ -201,7 +212,7 @@ func (lk *LogKeyboard) navigationMenu() string {
 		isEnabled = " Disable"
 	}
 	watchInfo = watchInfo + shortcutKeyColor("w") + navColor(isEnabled+" Watch")
-	return openDDInfo + watchInfo
+	return openDDInfo + openDDUI + watchInfo
 }
 
 func (lk *LogKeyboard) clearNavigationMenu() {
@@ -234,6 +245,36 @@ func (lk *LogKeyboard) openDockerDesktop(ctx context.Context, project *types.Pro
 	)
 }
 
+func (lk *LogKeyboard) openDDComposeUI(ctx context.Context, project *types.Project) {
+	if !lk.IsDDComposeUIActive {
+		return
+	}
+	eg.Go(tracing.EventWrapFuncForErrGroup(ctx, "menu/gui/composeview", tracing.SpanOptions{},
+		func(ctx context.Context) error {
+			link := fmt.Sprintf("docker-desktop://dashboard/docker-compose/%s", project.Name)
+			err := open.Run(link)
+			if err != nil {
+				err = fmt.Errorf("Could not open Docker Desktop Compose UI")
+				lk.keyboardError("View Config", err)
+			}
+			return err
+		}),
+	)
+}
+func (lk *LogKeyboard) openDDWatchDocs(ctx context.Context, project *types.Project) {
+	eg.Go(tracing.EventWrapFuncForErrGroup(ctx, "menu/gui/watch", tracing.SpanOptions{},
+		func(ctx context.Context) error {
+			link := fmt.Sprintf("docker-desktop://dashboard/docker-compose/%s/watch", project.Name)
+			err := open.Run(link)
+			if err != nil {
+				err = fmt.Errorf("Could not open Docker Desktop Compose UI")
+				lk.keyboardError("Watch Docs", err)
+			}
+			return err
+		}),
+	)
+}
+
 func (lk *LogKeyboard) keyboardError(prefix string, err error) {
 	lk.kError.addError(prefix, err)
 
@@ -245,8 +286,13 @@ func (lk *LogKeyboard) keyboardError(prefix string, err error) {
 	}()
 }
 
-func (lk *LogKeyboard) StartWatch(ctx context.Context, project *types.Project, options api.UpOptions) {
+func (lk *LogKeyboard) StartWatch(ctx context.Context, doneCh chan bool, project *types.Project, options api.UpOptions) {
 	if !lk.IsWatchConfigured {
+		if lk.IsDDComposeUIActive {
+			// we try to open watch docs
+			lk.openDDWatchDocs(ctx, project)
+		}
+		// either way we mark menu/watch as an error
 		eg.Go(tracing.EventWrapFuncForErrGroup(ctx, "menu/watch", tracing.SpanOptions{},
 			func(ctx context.Context) error {
 				err := fmt.Errorf("Watch is not yet configured. Learn more: %s", ansiColor(CYAN, "https://docs.docker.com/compose/file-watch/"))
@@ -254,6 +300,7 @@ func (lk *LogKeyboard) StartWatch(ctx context.Context, project *types.Project, o
 				return err
 			}))
 		return
+
 	}
 	lk.Watch.switchWatching()
 	if !lk.Watch.isWatching() {
@@ -270,7 +317,7 @@ func (lk *LogKeyboard) StartWatch(ctx context.Context, project *types.Project, o
 				lk.Watch.newContext(ctx)
 				buildOpts := *options.Create.Build
 				buildOpts.Quiet = true
-				return lk.Watch.WatchFn(lk.Watch.Ctx, project, options.Start.Services, api.WatchOptions{
+				return lk.Watch.WatchFn(lk.Watch.Ctx, doneCh, project, options.Start.Services, api.WatchOptions{
 					Build: &buildOpts,
 					LogTo: options.Start.Attach,
 				})
@@ -278,12 +325,14 @@ func (lk *LogKeyboard) StartWatch(ctx context.Context, project *types.Project, o
 	}
 }
 
-func (lk *LogKeyboard) HandleKeyEvents(event keyboard.KeyEvent, ctx context.Context, project *types.Project, options api.UpOptions) {
+func (lk *LogKeyboard) HandleKeyEvents(event keyboard.KeyEvent, ctx context.Context, doneCh chan bool, project *types.Project, options api.UpOptions) {
 	switch kRune := event.Rune; kRune {
 	case 'v':
 		lk.openDockerDesktop(ctx, project)
 	case 'w':
-		lk.StartWatch(ctx, project, options)
+		lk.StartWatch(ctx, doneCh, project, options)
+	case 'o':
+		lk.openDDComposeUI(ctx, project)
 	}
 	switch key := event.Key; key {
 	case keyboard.KeyCtrlC:

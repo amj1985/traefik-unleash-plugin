@@ -85,10 +85,6 @@ func (s *composeService) publish(ctx context.Context, project *types.Project, re
 	if !s.dryRun {
 		err = ocipush.PushManifest(ctx, resolver, named, layers, options.OCIVersion)
 		if err != nil {
-			return err
-		}
-
-		if err != nil {
 			w.Event(progress.Event{
 				ID:     repository,
 				Text:   "publishing",

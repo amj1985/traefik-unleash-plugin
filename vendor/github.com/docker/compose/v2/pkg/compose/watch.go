@@ -33,6 +33,9 @@ import (
 	"github.com/docker/compose/v2/pkg/api"
 	"github.com/docker/compose/v2/pkg/watch"
 	moby "github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/api/types/filters"
+	"github.com/docker/docker/api/types/image"
 	"github.com/jonboulle/clockwork"
 	"github.com/mitchellh/mapstructure"
 	"github.com/sirupsen/logrus"
@@ -77,7 +80,10 @@ func (s *composeService) shouldWatch(project *types.Project) bool {
 	return shouldWatch
 }
 
-func (s *composeService) Watch(ctx context.Context, project *types.Project, services []string, options api.WatchOptions) error { //nolint: gocyclo
+func (s *composeService) Watch(ctx context.Context, project *types.Project, services []string, options api.WatchOptions) error {
+	return s.watch(ctx, nil, project, services, options)
+}
+func (s *composeService) watch(ctx context.Context, syncChannel chan bool, project *types.Project, services []string, options api.WatchOptions) error { //nolint: gocyclo
 	var err error
 	if project, err = project.WithSelectedServices(services); err != nil {
 		return err
@@ -171,8 +177,12 @@ func (s *composeService) Watch(ctx context.Context, project *types.Project, serv
 		}
 		watching = true
 		eg.Go(func() error {
-			defer watcher.Close() //nolint:errcheck
-			return s.watch(ctx, project, service.Name, options, watcher, syncer, config.Watch)
+			defer func() {
+				if err := watcher.Close(); err != nil {
+					logrus.Debugf("Error closing watcher for service %s: %v", service.Name, err)
+				}
+			}()
+			return s.watchEvents(ctx, project, service.Name, options, watcher, syncer, config.Watch)
 		})
 	}
 	if !watching {
@@ -180,10 +190,18 @@ func (s *composeService) Watch(ctx context.Context, project *types.Project, serv
 	}
 	options.LogTo.Log(api.WatchLogger, "Watch enabled")
 
-	return eg.Wait()
+	for {
+		select {
+		case <-ctx.Done():
+			return eg.Wait()
+		case <-syncChannel:
+			options.LogTo.Log(api.WatchLogger, "Watch disabled")
+			return nil
+		}
+	}
 }
 
-func (s *composeService) watch(ctx context.Context, project *types.Project, name string, options api.WatchOptions, watcher watch.Notify, syncer sync.Syncer, triggers []types.Trigger) error {
+func (s *composeService) watchEvents(ctx context.Context, project *types.Project, name string, options api.WatchOptions, watcher watch.Notify, syncer sync.Syncer, triggers []types.Trigger) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
@@ -386,7 +404,7 @@ func (t tarDockerClient) ContainersForService(ctx context.Context, projectName s
 }
 
 func (t tarDockerClient) Exec(ctx context.Context, containerID string, cmd []string, in io.Reader) error {
-	execCfg := moby.ExecConfig{
+	execCfg := container.ExecOptions{
 		Cmd:          cmd,
 		AttachStdout: false,
 		AttachStderr: true,
@@ -398,7 +416,7 @@ func (t tarDockerClient) Exec(ctx context.Context, containerID string, cmd []str
 		return err
 	}
 
-	startCheck := moby.ExecStartCheck{Tty: false, Detach: false}
+	startCheck := container.ExecStartOptions{Tty: false, Detach: false}
 	conn, err := t.s.apiClient().ContainerExecAttach(ctx, execCreateResp.ID, startCheck)
 	if err != nil {
 		return err
@@ -446,7 +464,7 @@ func (t tarDockerClient) Exec(ctx context.Context, containerID string, cmd []str
 }
 
 func (t tarDockerClient) Untar(ctx context.Context, id string, archive io.ReadCloser) error {
-	return t.s.apiClient().CopyToContainer(ctx, id, "/", archive, moby.CopyToContainerOptions{
+	return t.s.apiClient().CopyToContainer(ctx, id, "/", archive, container.CopyToContainerOptions{
 		CopyUIDGID: true,
 	})
 }
@@ -459,11 +477,17 @@ func (s *composeService) handleWatchBatch(ctx context.Context, project *types.Pr
 			options.LogTo.Log(api.WatchLogger, fmt.Sprintf("Rebuilding service %q after changes were detected...", serviceName))
 			// restrict the build to ONLY this service, not any of its dependencies
 			options.Build.Services = []string{serviceName}
-			_, err := s.build(ctx, project, *options.Build, nil)
+			imageNameToIdMap, err := s.build(ctx, project, *options.Build, nil)
+
 			if err != nil {
 				options.LogTo.Log(api.WatchLogger, fmt.Sprintf("Build failed. Error: %v", err))
 				return err
 			}
+
+			if options.Prune {
+				s.pruneDanglingImagesOnRebuild(ctx, project.Name, imageNameToIdMap)
+			}
+
 			options.LogTo.Log(api.WatchLogger, fmt.Sprintf("service %q successfully built", serviceName))
 
 			err = s.create(ctx, project, api.CreateOptions{
@@ -525,5 +549,28 @@ func writeWatchSyncMessage(log api.LogConsumer, serviceName string, pathMappings
 			hostPathsToSync[i] = pathMappings[i].HostPath
 		}
 		log.Log(api.WatchLogger, fmt.Sprintf("Syncing service %q after %d changes were detected", serviceName, len(pathMappings)))
+	}
+}
+
+func (s *composeService) pruneDanglingImagesOnRebuild(ctx context.Context, projectName string, imageNameToIdMap map[string]string) {
+	images, err := s.apiClient().ImageList(ctx, image.ListOptions{
+		Filters: filters.NewArgs(
+			filters.Arg("dangling", "true"),
+			filters.Arg("label", api.ProjectLabel+"="+projectName),
+		),
+	})
+
+	if err != nil {
+		logrus.Debugf("Failed to list images: %v", err)
+		return
+	}
+
+	for _, img := range images {
+		if _, ok := imageNameToIdMap[img.ID]; !ok {
+			_, err := s.apiClient().ImageRemove(ctx, img.ID, image.RemoveOptions{})
+			if err != nil {
+				logrus.Debugf("Failed to remove image %s: %v", img.ID, err)
+			}
+		}
 	}
 }

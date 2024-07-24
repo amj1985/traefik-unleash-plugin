@@ -208,7 +208,7 @@ func addFlags(flags *pflag.FlagSet) *containerOptions {
 	flags.Var(copts.ulimits, "ulimit", "Ulimit options")
 	flags.StringVarP(&copts.user, "user", "u", "", "Username or UID (format: <name|uid>[:<group|gid>])")
 	flags.StringVarP(&copts.workingDir, "workdir", "w", "", "Working directory inside the container")
-	flags.BoolVar(&copts.autoRemove, "rm", false, "Automatically remove the container when it exits")
+	flags.BoolVar(&copts.autoRemove, "rm", false, "Automatically remove the container and its associated anonymous volumes when it exits")
 
 	// Security
 	flags.Var(&copts.capAdd, "cap-add", "Add Linux capabilities")
@@ -574,10 +574,10 @@ func parse(flags *pflag.FlagSet, copts *containerOptions, serverOS string) (*con
 			return nil, errors.Errorf("--health-retries cannot be negative")
 		}
 		if copts.healthStartPeriod < 0 {
-			return nil, fmt.Errorf("--health-start-period cannot be negative")
+			return nil, errors.New("--health-start-period cannot be negative")
 		}
 		if copts.healthStartInterval < 0 {
-			return nil, fmt.Errorf("--health-start-interval cannot be negative")
+			return nil, errors.New("--health-start-interval cannot be negative")
 		}
 
 		healthConfig = &container.HealthConfig{

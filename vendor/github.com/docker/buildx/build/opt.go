@@ -12,7 +12,7 @@ import (
 
 	"github.com/containerd/containerd/content"
 	"github.com/containerd/containerd/content/local"
-	"github.com/containerd/containerd/platforms"
+	"github.com/containerd/platforms"
 	"github.com/distribution/reference"
 	"github.com/docker/buildx/builder"
 	"github.com/docker/buildx/driver"
@@ -20,7 +20,6 @@ import (
 	"github.com/docker/buildx/util/dockerutil"
 	"github.com/docker/buildx/util/osutil"
 	"github.com/docker/buildx/util/progress"
-	"github.com/docker/docker/builder/remotecontext/urlutil"
 	"github.com/moby/buildkit/client"
 	"github.com/moby/buildkit/client/llb"
 	"github.com/moby/buildkit/client/ociindex"
@@ -105,10 +104,6 @@ func toSolveOpt(ctx context.Context, node builder.Node, multiDriver bool, opt Op
 		SourcePolicy:        opt.SourcePolicy,
 	}
 
-	if so.Ref == "" {
-		so.Ref = identity.NewID()
-	}
-
 	if opt.CgroupParent != "" {
 		so.FrontendAttrs["cgroup-parent"] = opt.CgroupParent
 	}
@@ -162,7 +157,7 @@ func toSolveOpt(ctx context.Context, node builder.Node, multiDriver bool, opt Op
 	case 1:
 		// valid
 	case 0:
-		if !noDefaultLoad() {
+		if !noDefaultLoad() && opt.PrintFunc == nil {
 			if nodeDriver.IsMobyDriver() {
 				// backwards compat for docker driver only:
 				// this ensures the build results in a docker image.
@@ -259,7 +254,7 @@ func toSolveOpt(ctx context.Context, node builder.Node, multiDriver bool, opt Op
 		if e.Type == "docker" || e.Type == "image" || e.Type == "oci" {
 			// inline buildinfo attrs from build arg
 			if v, ok := opt.BuildArgs["BUILDKIT_INLINE_BUILDINFO_ATTRS"]; ok {
-				e.Attrs["buildinfo-attrs"] = v
+				opt.Exports[i].Attrs["buildinfo-attrs"] = v
 			}
 		}
 	}
@@ -273,11 +268,9 @@ func toSolveOpt(ctx context.Context, node builder.Node, multiDriver bool, opt Op
 	}
 	defers = append(defers, releaseLoad)
 
-	if sharedKey := so.LocalDirs["context"]; sharedKey != "" {
-		if p, err := filepath.Abs(sharedKey); err == nil {
-			sharedKey = filepath.Base(p)
-		}
-		so.SharedKey = sharedKey + ":" + confutil.TryNodeIdentifier(configDir)
+	// add node identifier to shared key if one was specified
+	if so.SharedKey != "" {
+		so.SharedKey += ":" + confutil.TryNodeIdentifier(configDir)
 	}
 
 	if opt.Pull {
@@ -417,6 +410,11 @@ func loadInputs(ctx context.Context, d *driver.DriverHandle, inp Inputs, addVCSL
 		if err := setLocalMount("context", inp.ContextPath, target, addVCSLocalDir); err != nil {
 			return nil, err
 		}
+		sharedKey := inp.ContextPath
+		if p, err := filepath.Abs(sharedKey); err == nil {
+			sharedKey = filepath.Base(p)
+		}
+		target.SharedKey = sharedKey
 		switch inp.DockerfilePath {
 		case "-":
 			dockerfileReader = inp.InStream
@@ -452,7 +450,7 @@ func loadInputs(ctx context.Context, d *driver.DriverHandle, inp Inputs, addVCSL
 		dockerfileName = "Dockerfile"
 		target.FrontendAttrs["dockerfilekey"] = "dockerfile"
 	}
-	if urlutil.IsURL(inp.DockerfilePath) {
+	if isHTTPURL(inp.DockerfilePath) {
 		dockerfileDir, err = createTempDockerfileFromURL(ctx, d, inp.DockerfilePath, pw)
 		if err != nil {
 			return nil, err
@@ -494,45 +492,18 @@ func loadInputs(ctx context.Context, d *driver.DriverHandle, inp Inputs, addVCSL
 
 		// handle OCI layout
 		if strings.HasPrefix(v.Path, "oci-layout://") {
-			pathAlone := strings.TrimPrefix(v.Path, "oci-layout://")
-			localPath := pathAlone
+			localPath := strings.TrimPrefix(v.Path, "oci-layout://")
 			localPath, dig, hasDigest := strings.Cut(localPath, "@")
 			localPath, tag, hasTag := strings.Cut(localPath, ":")
 			if !hasTag {
 				tag = "latest"
-				hasTag = true
 			}
-			idx := ociindex.NewStoreIndex(localPath)
 			if !hasDigest {
-				// lookup by name
-				desc, err := idx.Get(tag)
+				dig, err = resolveDigest(localPath, tag)
 				if err != nil {
-					return nil, err
-				}
-				if desc != nil {
-					dig = string(desc.Digest)
-					hasDigest = true
+					return nil, errors.Wrapf(err, "oci-layout reference %q could not be resolved", v.Path)
 				}
 			}
-			if !hasDigest {
-				// lookup single
-				desc, err := idx.GetSingle()
-				if err != nil {
-					return nil, err
-				}
-				if desc != nil {
-					dig = string(desc.Digest)
-					hasDigest = true
-				}
-			}
-			if !hasDigest {
-				return nil, errors.Errorf("oci-layout reference %q could not be resolved", v.Path)
-			}
-			_, err := digest.Parse(dig)
-			if err != nil {
-				return nil, errors.Wrapf(err, "invalid oci-layout digest %s", dig)
-			}
-
 			store, err := local.NewStore(localPath)
 			if err != nil {
 				return nil, errors.Wrapf(err, "invalid store at %s", localPath)
@@ -543,15 +514,7 @@ func loadInputs(ctx context.Context, d *driver.DriverHandle, inp Inputs, addVCSL
 			}
 			target.OCIStores[storeName] = store
 
-			layout := "oci-layout://" + storeName
-			if hasTag {
-				layout += ":" + tag
-			}
-			if hasDigest {
-				layout += "@" + dig
-			}
-
-			target.FrontendAttrs["context:"+k] = layout
+			target.FrontendAttrs["context:"+k] = "oci-layout://" + storeName + ":" + tag + "@" + dig
 			continue
 		}
 		st, err := os.Stat(v.Path)
@@ -573,10 +536,38 @@ func loadInputs(ctx context.Context, d *driver.DriverHandle, inp Inputs, addVCSL
 
 	release := func() {
 		for _, dir := range toRemove {
-			os.RemoveAll(dir)
+			_ = os.RemoveAll(dir)
 		}
 	}
 	return release, nil
+}
+
+func resolveDigest(localPath, tag string) (dig string, _ error) {
+	idx := ociindex.NewStoreIndex(localPath)
+
+	// lookup by name
+	desc, err := idx.Get(tag)
+	if err != nil {
+		return "", err
+	}
+	if desc == nil {
+		// lookup single
+		desc, err = idx.GetSingle()
+		if err != nil {
+			return "", err
+		}
+	}
+	if desc == nil {
+		return "", errors.New("failed to resolve digest")
+	}
+
+	dig = string(desc.Digest)
+	_, err = digest.Parse(dig)
+	if err != nil {
+		return "", errors.Wrapf(err, "invalid digest %s", dig)
+	}
+
+	return dig, nil
 }
 
 func setLocalMount(name, root string, so *client.SolveOpt, addVCSLocalDir func(key, dir string, so *client.SolveOpt)) error {

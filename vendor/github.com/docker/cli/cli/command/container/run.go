@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"os"
 	"strings"
 	"syscall"
 
@@ -70,22 +69,15 @@ func NewRunCommand(dockerCli command.Cli) *cobra.Command {
 	command.AddTrustVerificationFlags(flags, &options.untrusted, dockerCli.ContentTrustEnabled())
 	copts = addFlags(flags)
 
-	cmd.RegisterFlagCompletionFunc(
-		"env",
-		func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
-			return os.Environ(), cobra.ShellCompDirectiveNoFileComp
-		},
-	)
-	cmd.RegisterFlagCompletionFunc(
-		"env-file",
-		func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
-			return nil, cobra.ShellCompDirectiveDefault
-		},
-	)
-	cmd.RegisterFlagCompletionFunc(
-		"network",
-		completion.NetworkNames(dockerCli),
-	)
+	_ = cmd.RegisterFlagCompletionFunc("cap-add", completeLinuxCapabilityNames)
+	_ = cmd.RegisterFlagCompletionFunc("cap-drop", completeLinuxCapabilityNames)
+	_ = cmd.RegisterFlagCompletionFunc("env", completion.EnvVarNames)
+	_ = cmd.RegisterFlagCompletionFunc("env-file", completion.FileNames)
+	_ = cmd.RegisterFlagCompletionFunc("network", completion.NetworkNames(dockerCli))
+	_ = cmd.RegisterFlagCompletionFunc("pull", completion.FromList(PullImageAlways, PullImageMissing, PullImageNever))
+	_ = cmd.RegisterFlagCompletionFunc("restart", completeRestartPolicies)
+	_ = cmd.RegisterFlagCompletionFunc("stop-signal", completeSignals)
+	_ = cmd.RegisterFlagCompletionFunc("volumes-from", completion.ContainerNames(dockerCli, true))
 	return cmd
 }
 
@@ -119,6 +111,8 @@ func runRun(ctx context.Context, dockerCli command.Cli, flags *pflag.FlagSet, ro
 
 //nolint:gocyclo
 func runContainer(ctx context.Context, dockerCli command.Cli, runOpts *runOptions, copts *containerOptions, containerCfg *containerConfig) error {
+	ctx = context.WithoutCancel(ctx)
+
 	config := containerCfg.Config
 	stdout, stderr := dockerCli.Out(), dockerCli.Err()
 	apiClient := dockerCli.Client()
@@ -150,7 +144,12 @@ func runContainer(ctx context.Context, dockerCli command.Cli, runOpts *runOption
 	}
 	if runOpts.sigProxy {
 		sigc := notifyAllSignals()
-		go ForwardAllSignals(ctx, apiClient, containerID, sigc)
+		// since we're explicitly setting up signal handling here, and the daemon will
+		// get notified independently of the clients ctx cancellation, we use this context
+		// but without cancellation to avoid ForwardAllSignals from returning
+		// before all signals are forwarded.
+		bgCtx := context.WithoutCancel(ctx)
+		go ForwardAllSignals(bgCtx, apiClient, containerID, sigc)
 		defer signal.StopCatch(sigc)
 	}
 
@@ -173,6 +172,9 @@ func runContainer(ctx context.Context, dockerCli command.Cli, runOpts *runOption
 			detachKeys = runOpts.detachKeys
 		}
 
+		// ctx should not be cancellable here, as this would kill the stream to the container
+		// and we want to keep the stream open until the process in the container exits or until
+		// the user forcefully terminates the CLI.
 		closeFn, err := attachContainer(ctx, dockerCli, containerID, &errCh, config, container.AttachOptions{
 			Stream:     true,
 			Stdin:      config.AttachStdin,
@@ -186,7 +188,11 @@ func runContainer(ctx context.Context, dockerCli command.Cli, runOpts *runOption
 		defer closeFn()
 	}
 
-	statusChan := waitExitOrRemoved(ctx, apiClient, containerID, copts.autoRemove)
+	// New context here because we don't to cancel waiting on container exit/remove
+	// when we cancel attach, etc.
+	statusCtx, cancelStatusCtx := context.WithCancel(context.WithoutCancel(ctx))
+	defer cancelStatusCtx()
+	statusChan := waitExitOrRemoved(statusCtx, apiClient, containerID, copts.autoRemove)
 
 	// start the container
 	if err := apiClient.ContainerStart(ctx, containerID, container.StartOptions{}); err != nil {
