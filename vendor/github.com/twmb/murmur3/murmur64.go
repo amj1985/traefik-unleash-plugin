@@ -37,6 +37,10 @@ func (d *digest64) Sum64() uint64 {
 	return h1
 }
 
+func (d *digest64) bmix(p []byte) (tail []byte) {
+	return (*digest128)(d).bmix(p)
+}
+
 // Sum64 returns the murmur3 sum of data. It is equivalent to the following
 // sequence (without the extra burden and the extra allocation):
 //     hasher := New64()
