@@ -6,7 +6,6 @@ import (
 	"strconv"
 	"sync"
 	"time"
-	"fmt"
 
 	"github.com/twmb/murmur3"
 )
@@ -61,11 +60,7 @@ func NormalizedVariantValue(id string, groupId string, normalizer int, seed uint
 	hash := murmur3.SeedNew32(seed)
 	hash.Write([]byte(groupId + ":" + id))
 	hashCode := hash.Sum32()
-	n := hashCode%uint32(normalizer) + 1
-
-	fmt.Println("normalized variant", n, "hashCode", hashCode)
-
-	return n
+	return hashCode%uint32(normalizer) + 1
 }
 
 // coalesce returns the first non-empty string in the list of arguments
