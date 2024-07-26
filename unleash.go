@@ -30,11 +30,10 @@ type LogEntry struct {
 }
 
 type Config struct {
-	Url          string `yaml:"url"`
-	App          string `yaml:"app"`
-	UserIdHeader string `yaml:"userIdHeader"`
-	Interval     *int   `yaml:"interval"`
-	Metrics      *struct {
+	Url      string `yaml:"url"`
+	App      string `yaml:"app"`
+	Interval *int   `yaml:"interval"`
+	Metrics  *struct {
 		Interval *int `yaml:"interval"`
 	} `json:"metrics"`
 	Toggles []struct {
