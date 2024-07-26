@@ -21,6 +21,7 @@ const (
 	DefaultInterval = 10
 	RequestHeader   = "request"
 	ResponseHeader  = "response"
+	UserIdHeader    = "X-Unleash-User-Id"
 )
 
 type LogEntry struct {
@@ -29,10 +30,11 @@ type LogEntry struct {
 }
 
 type Config struct {
-	Url      string `yaml:"url"`
-	App      string `yaml:"app"`
-	Interval *int   `yaml:"interval"`
-	Metrics  *struct {
+	Url          string `yaml:"url"`
+	App          string `yaml:"app"`
+	UserIdHeader string `yaml:"userIdHeader"`
+	Interval     *int   `yaml:"interval"`
+	Metrics      *struct {
 		Interval *int `yaml:"interval"`
 	} `json:"metrics"`
 	Toggles []struct {
@@ -81,7 +83,7 @@ type FeatureToggle struct {
 }
 
 func (toggle *FeatureToggle) enabled(r *http.Request) bool {
-	userId := r.Header.Get("X-Unleash-User-Id")
+	userId := r.Header.Get(UserIdHeader)
 	if userId != "" {
 		ctx := unleashContext.Context{
 			UserId: userId,
@@ -159,8 +161,7 @@ func (u *Unleash) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 			fmt.Println(jsonMessageFrom(fmt.Sprintf("Executing feature flag: %s", toggle.feature)))
 			evaluateHeadersFromToggle(rw, req, toggle)
 			evaluatePathFromToggle(toggle, req)
-			var isHostOverwritten = evaluateHostFromToggle(rw, req, toggle)
-			if isHostOverwritten {
+			if evaluateHostFromToggle(rw, req, toggle) {
 				return
 			}
 			break
