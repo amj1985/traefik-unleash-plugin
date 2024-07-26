@@ -52,6 +52,14 @@ http:
               path:
                 value: "/john"
                 rewrite: "/doe"
+            - feature: "test-toggle-flexible-rollout-100"
+              path:
+                value: "/hello"
+                rewrite: "/world"
+            - feature: "test-toggle-flexible-rollout-0"
+              path:
+                value: "/alice"
+                rewrite: "/bob"
             - feature: "test-toggle-host"
               host:
                 value: "localhost"
