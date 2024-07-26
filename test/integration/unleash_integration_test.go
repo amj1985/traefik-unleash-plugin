@@ -81,6 +81,38 @@ toggles:
 	testIntegrationRewrite(t, conf, "http://localhost/john", "", "localhost", "/doe", nil, nil)
 }
 
+func TestIntegrationRewritePathWhenGradualToggleIsActiveAt100Percent(t *testing.T) {
+	conf := `
+url: "http://localhost:4242/api/"
+app: "test-app"
+interval: 10
+metrics:
+  interval: 10
+toggles:
+  - feature: "test-toggle-flexible-rollout-100"
+    path:
+      value: "/hello"
+      rewrite: "/world"
+`
+	testIntegrationRewrite(t, conf, "http://localhost/hello", "", "localhost", "/world", nil, nil)
+}
+
+func TestIntegrationNotRewritePathWhenGradualToggleIsActiveAt0Percent(t *testing.T) {
+	conf := `
+url: "http://localhost:4242/api/"
+app: "test-app"
+interval: 10
+metrics:
+  interval: 10
+toggles:
+  - feature: "test-toggle-flexible-rollout-0"
+    path:
+      value: "/alice"
+      rewrite: "/bob"
+`
+	testIntegrationRewrite(t, conf, "http://localhost/alice", "", "localhost", "/alice", nil, nil)
+}
+
 func TestIntegrationRewriteHostWhenToggleIsActive(t *testing.T) {
 	conf := `
 url: "http://localhost:4242/api/"

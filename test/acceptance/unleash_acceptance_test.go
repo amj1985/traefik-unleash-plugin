@@ -35,6 +35,14 @@ func TestAcceptanceRewritePathWhenToggleIsActive(t *testing.T) {
 	testAcceptanceRewrite(t, http.MethodGet, "/john", nil, "localhost", "GET /doe HTTP/1.1", "Host: localhost", nil, nil)
 }
 
+func TestAcceptanceRewritePathWhenGradualToggleIsActiveAt100Percent(t *testing.T) {
+	testAcceptanceRewrite(t, http.MethodGet, "/hello", nil, "localhost", "GET /world HTTP/1.1", "Host: localhost", nil, nil)
+}
+
+func TestAcceptanceNotRewritePathWhenGradualToggleIsActiveAt0Percent(t *testing.T) {
+	testAcceptanceRewrite(t, http.MethodGet, "/alice", nil, "localhost", "GET /alice HTTP/1.1", "Host: localhost", nil, nil)
+}
+
 func TestAcceptanceRewriteHostWhenToggleIsActive(t *testing.T) {
 	testAcceptanceRewrite(t, http.MethodGet, "", nil, "localhost", "", "Host: whoami1", nil, nil)
 }

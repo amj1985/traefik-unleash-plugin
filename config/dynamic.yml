@@ -56,3 +56,11 @@ http:
               host:
                 value: "localhost"
                 rewrite: "whoami1"
+            - feature: "test-toggle-flexible-rollout-100"
+              path:
+                value: "/hello"
+                rewrite: "/world"
+            - feature: "test-toggle-flexible-rollout-0"
+              path:
+                value: "/alice"
+                rewrite: "/bob"
