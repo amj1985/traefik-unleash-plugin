@@ -52,10 +52,6 @@ http:
               path:
                 value: "/john"
                 rewrite: "/doe"
-            - feature: "test-toggle-host"
-              host:
-                value: "localhost"
-                rewrite: "whoami1"
             - feature: "test-toggle-flexible-rollout-100"
               path:
                 value: "/hello"
@@ -64,3 +60,7 @@ http:
               path:
                 value: "/alice"
                 rewrite: "/bob"
+            - feature: "test-toggle-host"
+              host:
+                value: "localhost"
+                rewrite: "whoami1"
