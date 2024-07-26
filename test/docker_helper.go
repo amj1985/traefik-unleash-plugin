@@ -29,7 +29,6 @@ func Setup(m *testing.M) {
 
 	err := tc.
 		WithEnv(map[string]string{"TESTCONTAINERS_RYUK_DISABLED ": "true"}).
-		WaitForService("flyway", wait.ForExit()).
 		WaitForService("traefik", wait.ForHTTP("/foo")).
 		Up(context.Background())
 
