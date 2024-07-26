@@ -2,9 +2,12 @@ displayName: Traefik unleash plugin
 
 type: middleware
 
-import: github.com/traefik/unleash
+import: github.com/amj1985/traefik-unleash-plugin
 
 summary: Allow to rewrite host path and headers from request under a feature flag toggle from Unleash.
+
+iconPath: .assets/unleash_logo.png
+bannerPath: .assets/unleash_banner.png
 
 testData:
   url: "http://unleash:4242/api/"
