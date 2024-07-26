@@ -7,5 +7,13 @@ import: github.com/traefik/unleash
 summary: Allow to rewrite host path and headers from request under a feature flag toggle from Unleash.
 
 testData:
-  Headers:
-    X-Unleash-User-Id: 12345
+  url: "http://unleash:4242/api/"
+  app: "test-app"
+  interval: 10
+  metrics:
+    interval: 10
+  toggles:
+    - feature: "test-toggle-path"
+      path:
+        value: "/foo"
+        rewrite: "/bar"
