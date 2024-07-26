@@ -1,4 +1,4 @@
-module traefik-unleash-plugin
+module unleash
 
 go 1.22.0
 
