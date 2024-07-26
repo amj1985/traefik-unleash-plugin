@@ -17,4 +17,4 @@ log:
 experimental:
   localPlugins:
     unleash:
-      moduleName: "github.com/traefik/unleash"
+      moduleName: "github.com/amj1985/traefik-unleash-plugin"

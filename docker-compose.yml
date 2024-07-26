@@ -18,7 +18,7 @@ services:
       - "/var/run/docker.sock:/var/run/docker.sock:ro"
       - "./config/traefik.yml:/etc/traefik/traefik.yml:ro"
       - "./config/dynamic.yml:/etc/traefik/dynamic.yml:ro"
-      - "./:/plugins-local/src/github.com/traefik/unleash/"
+      - "./:/plugins-local/src/github.com/amj1985/traefik-unleash-plugin/"
     networks:
       - default
 

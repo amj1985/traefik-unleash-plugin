@@ -2,13 +2,13 @@ package unleash_integration
 
 import (
 	"context"
+	unleash "github.com/amj1985/traefik-unleash-plugin"
+	fixture "github.com/amj1985/traefik-unleash-plugin/test"
 	"github.com/stretchr/testify/assert"
 	"gopkg.in/yaml.v3"
 	"net/http"
 	"net/http/httptest"
 	"testing"
-	unleash "traefik_unleash"
-	fixture "traefik_unleash/test"
 )
 
 func TestMain(m *testing.M) {
@@ -129,7 +129,7 @@ toggles:
 	testIntegrationRewrite(t, conf, "http://localhost", "", "whoami1", "", nil, nil)
 }
 
-func testIntegrationRewrite(t *testing.T, conf, url, userId, expectedHost, expectedPath string, expectedRequestHeaders, expectedResponseHeaders map[string]string) {
+func testIntegrationRewrite(t *testing.T, conf, url, userId, _, expectedPath string, expectedRequestHeaders, expectedResponseHeaders map[string]string) {
 	var config unleash.Config
 	err := yaml.Unmarshal([]byte(conf), &config)
 	if err != nil {
