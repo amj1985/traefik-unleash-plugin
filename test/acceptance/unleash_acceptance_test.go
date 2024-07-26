@@ -2,12 +2,12 @@ package unleash_acceptance
 
 import (
 	"fmt"
+	fixture "github.com/amj1985/traefik-unleash-plugin/test"
 	"github.com/stretchr/testify/assert"
 	"io"
 	"net/http"
 	"strings"
 	"testing"
-	fixture "unleash/test"
 )
 
 func TestMain(m *testing.M) {
@@ -81,7 +81,10 @@ func doRequest(method, path string, headers map[string]string, hostname string) 
 	if err != nil {
 		return response, nil, err
 	}
-	defer response.Body.Close()
+
+	defer func(Body io.ReadCloser) {
+		_ = Body.Close()
+	}(response.Body)
 
 	body, err := io.ReadAll(response.Body)
 	if err != nil {

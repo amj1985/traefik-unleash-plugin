@@ -1,4 +1,4 @@
-package unleash
+package traefik_unleash_plugin
 
 import (
 	"context"
