@@ -25,3 +25,5 @@ vendor/**/*.s
 
 # Ignore go declaration files in vendor directory
 vendor/**/*_decl.go
+
+.DS_Store
