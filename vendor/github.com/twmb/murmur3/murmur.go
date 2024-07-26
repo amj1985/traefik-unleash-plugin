@@ -3,6 +3,7 @@ package murmur3
 import (
 	"hash"
 	"math/bits"
+	"fmt"
 )
 
 // Make sure interfaces are correctly implemented.
@@ -42,6 +43,9 @@ type digest32 struct {
 // This reads and processes the data in chunks of little endian uint32s;
 // thus, the returned hash is portable across architectures.
 func SeedNew32(seed uint32) hash.Hash32 {
+
+	fmt.Printf("seed = %d\n", seed)
+
 	d := &digest32{seed: seed}
 	d.bmixer = d
 	d.Reset()
