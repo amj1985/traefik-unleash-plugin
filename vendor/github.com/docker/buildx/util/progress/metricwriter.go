@@ -13,6 +13,8 @@ import (
 	"github.com/opencontainers/go-digest"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 )
 
 type metricWriter struct {
@@ -29,6 +31,7 @@ func newMetrics(mp metric.MeterProvider, attrs attribute.Set) *metricWriter {
 			newExecMetricRecorder(meter, attrs),
 			newExportImageMetricRecorder(meter, attrs),
 			newIdleMetricRecorder(meter, attrs),
+			newLintMetricRecorder(meter, attrs),
 		},
 		attrs: attrs,
 	}
@@ -426,3 +429,51 @@ func calculateIdleTime(started, completed []time.Time) time.Duration {
 	}
 	return elapsed
 }
+
+type lintMetricRecorder struct {
+	// Attributes holds the set of attributes for all metrics produced.
+	Attributes attribute.Set
+
+	// Count holds the metric for the number of times a lint rule has been triggered
+	// within the current build.
+	Count metric.Int64Counter
+}
+
+func newLintMetricRecorder(meter metric.Meter, attrs attribute.Set) *lintMetricRecorder {
+	mr := &lintMetricRecorder{
+		Attributes: attrs,
+	}
+	mr.Count, _ = meter.Int64Counter("lint.trigger.count",
+		metric.WithDescription("Measures the number of times a lint rule has been triggered."))
+	return mr
+}
+
+func kebabToCamel(s string) string {
+	words := strings.Split(s, "-")
+	for i, word := range words {
+		words[i] = cases.Title(language.English).String(word)
+	}
+	return strings.Join(words, "")
+}
+
+func (mr *lintMetricRecorder) Record(ss *client.SolveStatus) {
+	for _, warning := range ss.Warnings {
+		m := reLintMessage.FindSubmatch([]byte(warning.URL))
+		if len(m) < 2 {
+			continue
+		}
+
+		ruleName := kebabToCamel(string(m[1]))
+		mr.Count.Add(context.Background(), 1,
+			metric.WithAttributeSet(mr.Attributes),
+			metric.WithAttributes(
+				lintRuleNameProperty.String(ruleName),
+			),
+		)
+	}
+}
+
+var (
+	reLintMessage        = regexp.MustCompile(`^https://docs\.docker\.com/go/dockerfile/rule/([\w|-]+)/`)
+	lintRuleNameProperty = attribute.Key("lint.rule.name")
+)

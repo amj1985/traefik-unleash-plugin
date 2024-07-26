@@ -95,13 +95,15 @@ func (s *composeService) Up(ctx context.Context, project *types.Project, options
 			if err != nil {
 				logrus.Warn("could not start menu, an error occurred while starting.")
 			} else {
+				defer keyboard.Close() //nolint:errcheck
 				isWatchConfigured := s.shouldWatch(project)
 				isDockerDesktopActive := s.isDesktopIntegrationActive()
-				tracing.KeyboardMetrics(ctx, options.Start.NavigationMenu, isDockerDesktopActive, isWatchConfigured)
+				isDockerDesktopComposeUI := s.isDesktopUIEnabled()
+				tracing.KeyboardMetrics(ctx, options.Start.NavigationMenu, isDockerDesktopActive, isWatchConfigured, isDockerDesktopComposeUI)
 
-				formatter.NewKeyboardManager(ctx, isDockerDesktopActive, isWatchConfigured, signalChan, s.Watch)
+				formatter.NewKeyboardManager(ctx, isDockerDesktopActive, isWatchConfigured, isDockerDesktopComposeUI, signalChan, s.watch)
 				if options.Start.Watch {
-					formatter.KeyboardManager.StartWatch(ctx, project, options)
+					formatter.KeyboardManager.StartWatch(ctx, doneCh, project, options)
 				}
 			}
 		}
@@ -134,7 +136,7 @@ func (s *composeService) Up(ctx context.Context, project *types.Project, options
 				})
 				return nil
 			case event := <-kEvents:
-				formatter.KeyboardManager.HandleKeyEvents(event, ctx, project, options)
+				formatter.KeyboardManager.HandleKeyEvents(event, ctx, doneCh, project, options)
 			}
 		}
 	})
@@ -158,14 +160,14 @@ func (s *composeService) Up(ctx context.Context, project *types.Project, options
 		eg.Go(func() error {
 			buildOpts := *options.Create.Build
 			buildOpts.Quiet = true
-			return s.Watch(ctx, project, options.Start.Services, api.WatchOptions{
+			return s.watch(ctx, doneCh, project, options.Start.Services, api.WatchOptions{
 				Build: &buildOpts,
 				LogTo: options.Start.Attach,
 			})
 		})
 	}
 
-	// We use the parent context without cancelation as we manage sigterm to stop the stack
+	// We use the parent context without cancellation as we manage sigterm to stop the stack
 	err = s.start(context.WithoutCancel(ctx), project.Name, options.Start, printer.HandleEvent)
 	if err != nil && !isTerminated.Load() { // Ignore error if the process is terminated
 		return err

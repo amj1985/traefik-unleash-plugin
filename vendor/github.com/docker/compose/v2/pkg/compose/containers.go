@@ -93,10 +93,19 @@ func (s *composeService) getSpecifiedContainer(ctx context.Context, projectName 
 		}
 		return moby.Container{}, fmt.Errorf("service %q is not running", serviceName)
 	}
+
+	// Sort by container number first, then put one-off containers at the end
 	sort.Slice(containers, func(i, j int) bool {
-		x, _ := strconv.Atoi(containers[i].Labels[api.ContainerNumberLabel])
-		y, _ := strconv.Atoi(containers[j].Labels[api.ContainerNumberLabel])
-		return x < y
+		numberLabelX, _ := strconv.Atoi(containers[i].Labels[api.ContainerNumberLabel])
+		numberLabelY, _ := strconv.Atoi(containers[j].Labels[api.ContainerNumberLabel])
+		IsOneOffLabelTrueX := containers[i].Labels[api.OneoffLabel] == "True"
+		IsOneOffLabelTrueY := containers[j].Labels[api.OneoffLabel] == "True"
+
+		if numberLabelX == numberLabelY {
+			return !IsOneOffLabelTrueX && IsOneOffLabelTrueY
+		}
+
+		return numberLabelX < numberLabelY
 	})
 	container := containers[0]
 	return container, nil
@@ -118,17 +127,16 @@ func isRunning() containerPredicate {
 	}
 }
 
-func isNotService(services ...string) containerPredicate {
-	return func(c moby.Container) bool {
-		service := c.Labels[api.ServiceLabel]
-		return !utils.StringContains(services, service)
-	}
-}
-
 // isOrphaned is a predicate to select containers without a matching service definition in compose project
 func isOrphaned(project *types.Project) containerPredicate {
 	services := append(project.ServiceNames(), project.DisabledServiceNames()...)
 	return func(c moby.Container) bool {
+		// One-off container
+		v, ok := c.Labels[api.OneoffLabel]
+		if ok && v == "True" {
+			return c.State == ContainerExited || c.State == ContainerDead
+		}
+		// Service that is not defined in the compose model
 		service := c.Labels[api.ServiceLabel]
 		return !utils.StringContains(services, service)
 	}

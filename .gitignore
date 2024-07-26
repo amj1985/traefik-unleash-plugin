@@ -19,6 +19,9 @@
 
 # Unleash mock depends on stretchr/testing which has a transitive dependency to unsafe which is not supported by traefik
 vendor/github.com/Unleash/unleash-client-go/v4/unleash_mock.go
-vendor/github.com/twmb/murmur3/murmur128_amd64.s
-vendor/github.com/twmb/murmur3/murmur128_decl.go
-vendor/github.com/twmb/murmur3/murmur64.go
+
+# Ignore assembly files in vendor directory
+vendor/**/*.s
+
+# Ignore go declaration files in vendor directory
+vendor/**/*_decl.go

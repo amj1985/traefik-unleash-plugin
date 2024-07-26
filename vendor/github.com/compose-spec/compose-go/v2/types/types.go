@@ -24,7 +24,6 @@ import (
 	"strings"
 
 	"github.com/docker/go-connections/nat"
-	"github.com/mitchellh/copystructure"
 )
 
 // ServiceConfig is the configuration of one service
@@ -194,11 +193,12 @@ func (s *ServiceConfig) SetScale(scale int) {
 }
 
 func (s *ServiceConfig) deepCopy() *ServiceConfig {
-	instance, err := copystructure.Copy(s)
-	if err != nil {
-		panic(err)
+	if s == nil {
+		return nil
 	}
-	return instance.(*ServiceConfig)
+	n := &ServiceConfig{}
+	deriveDeepCopyService(n, s)
+	return n
 }
 
 const (
@@ -453,6 +453,7 @@ type ServiceNetworkConfig struct {
 	Ipv6Address  string   `yaml:"ipv6_address,omitempty" json:"ipv6_address,omitempty"`
 	LinkLocalIPs []string `yaml:"link_local_ips,omitempty" json:"link_local_ips,omitempty"`
 	MacAddress   string   `yaml:"mac_address,omitempty" json:"mac_address,omitempty"`
+	DriverOpts   Options  `yaml:"driver_opts,omitempty" json:"driver_opts,omitempty"`
 
 	Extensions Extensions `yaml:"#extensions,inline,omitempty" json:"-"`
 }
@@ -697,7 +698,7 @@ type NetworkConfig struct {
 	Internal   bool       `yaml:"internal,omitempty" json:"internal,omitempty"`
 	Attachable bool       `yaml:"attachable,omitempty" json:"attachable,omitempty"`
 	Labels     Labels     `yaml:"labels,omitempty" json:"labels,omitempty"`
-	EnableIPv6 bool       `yaml:"enable_ipv6,omitempty" json:"enable_ipv6,omitempty"`
+	EnableIPv6 *bool      `yaml:"enable_ipv6,omitempty" json:"enable_ipv6,omitempty"`
 	Extensions Extensions `yaml:"#extensions,inline,omitempty" json:"-"`
 }
 
@@ -710,11 +711,11 @@ type IPAMConfig struct {
 
 // IPAMPool for a network
 type IPAMPool struct {
-	Subnet             string                 `yaml:"subnet,omitempty" json:"subnet,omitempty"`
-	Gateway            string                 `yaml:"gateway,omitempty" json:"gateway,omitempty"`
-	IPRange            string                 `yaml:"ip_range,omitempty" json:"ip_range,omitempty"`
-	AuxiliaryAddresses Mapping                `yaml:"aux_addresses,omitempty" json:"aux_addresses,omitempty"`
-	Extensions         map[string]interface{} `yaml:",inline" json:"-"`
+	Subnet             string     `yaml:"subnet,omitempty" json:"subnet,omitempty"`
+	Gateway            string     `yaml:"gateway,omitempty" json:"gateway,omitempty"`
+	IPRange            string     `yaml:"ip_range,omitempty" json:"ip_range,omitempty"`
+	AuxiliaryAddresses Mapping    `yaml:"aux_addresses,omitempty" json:"aux_addresses,omitempty"`
+	Extensions         Extensions `yaml:",inline" json:"-"`
 }
 
 // VolumeConfig for a volume
@@ -781,8 +782,40 @@ type ExtendsConfig struct {
 // SecretConfig for a secret
 type SecretConfig FileObjectConfig
 
+// MarshalYAML makes SecretConfig implement yaml.Marshaller
+func (s SecretConfig) MarshalYAML() (interface{}, error) {
+	// secret content is set while loading model. Never marshall it
+	s.Content = ""
+	return FileObjectConfig(s), nil
+}
+
+// MarshalJSON makes SecretConfig implement json.Marshaller
+func (s SecretConfig) MarshalJSON() ([]byte, error) {
+	// secret content is set while loading model. Never marshall it
+	s.Content = ""
+	return json.Marshal(FileObjectConfig(s))
+}
+
 // ConfigObjConfig is the config for the swarm "Config" object
 type ConfigObjConfig FileObjectConfig
+
+// MarshalYAML makes ConfigObjConfig implement yaml.Marshaller
+func (s ConfigObjConfig) MarshalYAML() (interface{}, error) {
+	// config content may have been set from environment while loading model. Marshall actual source
+	if s.Environment != "" {
+		s.Content = ""
+	}
+	return FileObjectConfig(s), nil
+}
+
+// MarshalJSON makes ConfigObjConfig implement json.Marshaller
+func (s ConfigObjConfig) MarshalJSON() ([]byte, error) {
+	// config content may have been set from environment while loading model. Marshall actual source
+	if s.Environment != "" {
+		s.Content = ""
+	}
+	return json.Marshal(FileObjectConfig(s))
+}
 
 type IncludeConfig struct {
 	Path             StringList `yaml:"path,omitempty" json:"path,omitempty"`

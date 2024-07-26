@@ -18,6 +18,7 @@ import (
 	"github.com/distribution/reference"
 	"github.com/docker/buildx/builder"
 	"github.com/docker/buildx/driver"
+	"github.com/docker/buildx/util/confutil"
 	"github.com/docker/buildx/util/desktop"
 	"github.com/docker/buildx/util/dockerutil"
 	"github.com/docker/buildx/util/imagetools"
@@ -25,12 +26,13 @@ import (
 	"github.com/docker/buildx/util/resolver"
 	"github.com/docker/buildx/util/waitmap"
 	"github.com/docker/cli/opts"
-	imagetypes "github.com/docker/docker/api/types/image"
+	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/pkg/jsonmessage"
 	"github.com/moby/buildkit/client"
 	"github.com/moby/buildkit/client/llb"
 	"github.com/moby/buildkit/exporter/containerimage/exptypes"
 	gateway "github.com/moby/buildkit/frontend/gateway/client"
+	"github.com/moby/buildkit/identity"
 	"github.com/moby/buildkit/session"
 	"github.com/moby/buildkit/solver/errdefs"
 	"github.com/moby/buildkit/solver/pb"
@@ -52,11 +54,8 @@ var (
 )
 
 const (
-	//nolint:gosec // G101: false-positive
-	printFallbackImage = "docker/dockerfile:1.5@sha256:dbbd5e059e8a07ff7ea6233b213b36aa516b4c53c645f1817a4dd18b83cbea56"
-	// https://github.com/moby/buildkit/commit/71f99c52a669dc0322b5ea57bc28a09c20427227
-	//nolint:gosec // G101: false-positive
-	printLintFallbackImage = "docker.io/docker/dockerfile-upstream@sha256:47663570b6cc49ed90dc6e3215090a366989ab934d12dc93856a8ae0d27a95e7"
+	printFallbackImage     = "docker/dockerfile:1.5@sha256:dbbd5e059e8a07ff7ea6233b213b36aa516b4c53c645f1817a4dd18b83cbea56"
+	printLintFallbackImage = "docker.io/docker/dockerfile-upstream:1.8.1@sha256:e87caa74dcb7d46cd820352bfea12591f3dba3ddc4285e19c7dcd13359f7cefd"
 )
 
 type Options struct {
@@ -85,7 +84,7 @@ type Options struct {
 	Session                []session.Attachable
 	Linked                 bool // Linked marks this target as exclusively linked (not requested by the user).
 	PrintFunc              *PrintFunc
-	WithProvenanceResponse bool
+	ProvenanceResponseMode confutil.MetadataProvenanceMode
 	SourcePolicy           *spb.Policy
 	GroupRef               string
 }
@@ -217,6 +216,9 @@ func BuildWithResultHandler(ctx context.Context, nodes []builder.Node, opt map[s
 		gitattrs, addVCSLocalDir, err := getGitAttributes(ctx, opt.Inputs.ContextPath, opt.Inputs.DockerfilePath)
 		if err != nil {
 			logrus.WithError(err).Warn("current commit information was not captured by the build")
+		}
+		if opt.Ref == "" {
+			opt.Ref = identity.NewID()
 		}
 		var reqn []*reqForNode
 		for _, np := range drivers[k] {
@@ -476,8 +478,8 @@ func BuildWithResultHandler(ctx context.Context, nodes []builder.Node, opt map[s
 						rr.ExporterResponse[k] = string(v)
 					}
 					rr.ExporterResponse["buildx.build.ref"] = buildRef
-					if opt.WithProvenanceResponse && node.Driver.HistoryAPISupported(ctx) {
-						if err := setRecordProvenance(ctx, c, rr, so.Ref, pw); err != nil {
+					if node.Driver.HistoryAPISupported(ctx) {
+						if err := setRecordProvenance(ctx, c, rr, so.Ref, opt.ProvenanceResponseMode, pw); err != nil {
 							return err
 						}
 					}
@@ -541,7 +543,7 @@ func BuildWithResultHandler(ctx context.Context, nodes []builder.Node, opt map[s
 				}
 
 				if pushNames != "" {
-					progress.Write(pw, fmt.Sprintf("merging manifest list %s", pushNames), func() error {
+					err := progress.Write(pw, fmt.Sprintf("merging manifest list %s", pushNames), func() error {
 						descs := make([]specs.Descriptor, 0, len(res))
 
 						for _, r := range res {
@@ -610,7 +612,12 @@ func BuildWithResultHandler(ctx context.Context, nodes []builder.Node, opt map[s
 								}
 							}
 
-							dt, desc, err := itpull.Combine(ctx, srcs, nil)
+							indexAnnotations, err := extractIndexAnnotations(opt.Exports)
+							if err != nil {
+								return err
+							}
+
+							dt, desc, err := itpull.Combine(ctx, srcs, indexAnnotations, false)
 							if err != nil {
 								return err
 							}
@@ -637,6 +644,9 @@ func BuildWithResultHandler(ctx context.Context, nodes []builder.Node, opt map[s
 						}
 						return nil
 					})
+					if err != nil {
+						return err
+					}
 				}
 				return nil
 			})
@@ -655,6 +665,27 @@ func BuildWithResultHandler(ctx context.Context, nodes []builder.Node, opt map[s
 	return resp, nil
 }
 
+func extractIndexAnnotations(exports []client.ExportEntry) (map[exptypes.AnnotationKey]string, error) {
+	annotations := map[exptypes.AnnotationKey]string{}
+	for _, exp := range exports {
+		for k, v := range exp.Attrs {
+			ak, ok, err := exptypes.ParseAnnotationKey(k)
+			if !ok {
+				continue
+			}
+			if err != nil {
+				return nil, err
+			}
+
+			switch ak.Type {
+			case exptypes.AnnotationIndex, exptypes.AnnotationManifestDescriptor:
+				annotations[ak] = v
+			}
+		}
+	}
+	return annotations, nil
+}
+
 func pushWithMoby(ctx context.Context, d *driver.DriverHandle, name string, l progress.SubLogger) error {
 	api := d.Config().DockerAPI
 	if api == nil {
@@ -665,7 +696,7 @@ func pushWithMoby(ctx context.Context, d *driver.DriverHandle, name string, l pr
 		return err
 	}
 
-	rc, err := api.ImagePush(ctx, name, imagetypes.PushOptions{
+	rc, err := api.ImagePush(ctx, name, image.PushOptions{
 		RegistryAuth: creds,
 	})
 	if err != nil {
@@ -744,11 +775,11 @@ func remoteDigestWithMoby(ctx context.Context, d *driver.DriverHandle, name stri
 	if err != nil {
 		return "", err
 	}
-	image, _, err := api.ImageInspectWithRaw(ctx, name)
+	img, _, err := api.ImageInspectWithRaw(ctx, name)
 	if err != nil {
 		return "", err
 	}
-	if len(image.RepoDigests) == 0 {
+	if len(img.RepoDigests) == 0 {
 		return "", nil
 	}
 	remoteImage, err := api.DistributionInspect(ctx, name, creds)
@@ -781,11 +812,11 @@ func calculateChildTargets(reqs map[string][]*reqForNode, opt map[string]Options
 }
 
 func waitContextDeps(ctx context.Context, index int, results *waitmap.Map, so *client.SolveOpt) error {
-	m := map[string]string{}
+	m := map[string][]string{}
 	for k, v := range so.FrontendAttrs {
 		if strings.HasPrefix(k, "context:") && strings.HasPrefix(v, "target:") {
 			target := resultKey(index, strings.TrimPrefix(v, "target:"))
-			m[target] = k
+			m[target] = append(m[target], k)
 		}
 	}
 	if len(m) == 0 {
@@ -800,7 +831,7 @@ func waitContextDeps(ctx context.Context, index int, results *waitmap.Map, so *c
 		return err
 	}
 
-	for k, v := range m {
+	for k, contexts := range m {
 		r, ok := res[k]
 		if !ok {
 			continue
@@ -815,19 +846,45 @@ func waitContextDeps(ctx context.Context, index int, results *waitmap.Map, so *c
 		if so.FrontendInputs == nil {
 			so.FrontendInputs = map[string]llb.State{}
 		}
-		if len(rr.Refs) > 0 {
-			for platform, r := range rr.Refs {
-				st, err := r.ToState()
+
+		for _, v := range contexts {
+			if len(rr.Refs) > 0 {
+				for platform, r := range rr.Refs {
+					st, err := r.ToState()
+					if err != nil {
+						return err
+					}
+					so.FrontendInputs[k+"::"+platform] = st
+					so.FrontendAttrs[v+"::"+platform] = "input:" + k + "::" + platform
+					metadata := make(map[string][]byte)
+					if dt, ok := rr.Metadata[exptypes.ExporterImageConfigKey+"/"+platform]; ok {
+						metadata[exptypes.ExporterImageConfigKey] = dt
+					}
+					if dt, ok := rr.Metadata["containerimage.buildinfo/"+platform]; ok {
+						metadata["containerimage.buildinfo"] = dt
+					}
+					if len(metadata) > 0 {
+						dt, err := json.Marshal(metadata)
+						if err != nil {
+							return err
+						}
+						so.FrontendAttrs["input-metadata:"+k+"::"+platform] = string(dt)
+					}
+				}
+				delete(so.FrontendAttrs, v)
+			}
+			if rr.Ref != nil {
+				st, err := rr.Ref.ToState()
 				if err != nil {
 					return err
 				}
-				so.FrontendInputs[k+"::"+platform] = st
-				so.FrontendAttrs[v+"::"+platform] = "input:" + k + "::" + platform
+				so.FrontendInputs[k] = st
+				so.FrontendAttrs[v] = "input:" + k
 				metadata := make(map[string][]byte)
-				if dt, ok := rr.Metadata[exptypes.ExporterImageConfigKey+"/"+platform]; ok {
+				if dt, ok := rr.Metadata[exptypes.ExporterImageConfigKey]; ok {
 					metadata[exptypes.ExporterImageConfigKey] = dt
 				}
-				if dt, ok := rr.Metadata["containerimage.buildinfo/"+platform]; ok {
+				if dt, ok := rr.Metadata["containerimage.buildinfo"]; ok {
 					metadata["containerimage.buildinfo"] = dt
 				}
 				if len(metadata) > 0 {
@@ -835,31 +892,8 @@ func waitContextDeps(ctx context.Context, index int, results *waitmap.Map, so *c
 					if err != nil {
 						return err
 					}
-					so.FrontendAttrs["input-metadata:"+k+"::"+platform] = string(dt)
+					so.FrontendAttrs["input-metadata:"+k] = string(dt)
 				}
-			}
-			delete(so.FrontendAttrs, v)
-		}
-		if rr.Ref != nil {
-			st, err := rr.Ref.ToState()
-			if err != nil {
-				return err
-			}
-			so.FrontendInputs[k] = st
-			so.FrontendAttrs[v] = "input:" + k
-			metadata := make(map[string][]byte)
-			if dt, ok := rr.Metadata[exptypes.ExporterImageConfigKey]; ok {
-				metadata[exptypes.ExporterImageConfigKey] = dt
-			}
-			if dt, ok := rr.Metadata["containerimage.buildinfo"]; ok {
-				metadata["containerimage.buildinfo"] = dt
-			}
-			if len(metadata) > 0 {
-				dt, err := json.Marshal(metadata)
-				if err != nil {
-					return err
-				}
-				so.FrontendAttrs["input-metadata:"+k] = string(dt)
 			}
 		}
 	}

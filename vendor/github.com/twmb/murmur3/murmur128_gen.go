@@ -1,6 +1,3 @@
-//go:build !go1.5 || !amd64 || gccgo
-// +build !go1.5 !amd64 gccgo
-
 package murmur3
 
 import "math/bits"

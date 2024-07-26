@@ -119,20 +119,13 @@ func NewGitCLI(opts ...Option) *GitCLI {
 // New returns a new git client with the same config as the current one, but
 // with the given options applied on top.
 func (cli *GitCLI) New(opts ...Option) *GitCLI {
-	c := &GitCLI{
-		git:           cli.git,
-		dir:           cli.dir,
-		workTree:      cli.workTree,
-		gitDir:        cli.gitDir,
-		args:          append([]string{}, cli.args...),
-		streams:       cli.streams,
-		sshAuthSock:   cli.sshAuthSock,
-		sshKnownHosts: cli.sshKnownHosts,
-	}
+	clone := *cli
+	clone.args = append([]string{}, cli.args...)
+
 	for _, opt := range opts {
-		opt(c)
+		opt(&clone)
 	}
-	return c
+	return &clone
 }
 
 // Run executes a git command with the given args.
@@ -210,13 +203,23 @@ func (cli *GitCLI) Run(ctx context.Context, args ...string) (_ []byte, err error
 		}
 
 		if err != nil {
+			select {
+			case <-ctx.Done():
+				cerr := context.Cause(ctx)
+				if cerr != nil {
+					return buf.Bytes(), errors.Wrapf(cerr, "context completed: git stderr:\n%s", errbuf.String())
+				}
+			default:
+			}
+
 			if strings.Contains(errbuf.String(), "--depth") || strings.Contains(errbuf.String(), "shallow") {
 				if newArgs := argsNoDepth(args); len(args) > len(newArgs) {
 					args = newArgs
 					continue
 				}
 			}
-			return buf.Bytes(), errors.Errorf("git error: %s\nstderr:\n%s", err, errbuf.String())
+
+			return buf.Bytes(), errors.Wrapf(err, "git stderr:\n%s", errbuf.String())
 		}
 		return buf.Bytes(), nil
 	}
