@@ -37,7 +37,6 @@ services:
   unleash:
     container_name: unleash
     image: unleashorg/unleash-server:4.8.2
-    build: .
     ports:
       - "4242:4242"
     environment:
@@ -49,7 +48,8 @@ services:
       - DATABASE_SSL=false
       - AUTH_TYPE=none
     depends_on:
-      - postgresql
+      postgresql:
+        condition: service_healthy
     networks:
       - default
 
@@ -63,6 +63,11 @@ services:
       POSTGRES_PASSWORD: develop
       POSTGRES_DB: commonFeatureToggles
     restart: always
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U featuretoggles" ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
     networks:
       - default
 
