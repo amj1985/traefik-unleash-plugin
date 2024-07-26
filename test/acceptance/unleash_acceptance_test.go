@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"strings"
 	"testing"
-	fixture "traefik_unleash/test"
+	fixture "unleash/test"
 )
 
 func TestMain(m *testing.M) {
