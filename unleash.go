@@ -2,14 +2,15 @@ package traefik_unleash_plugin
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"github.com/Unleash/unleash-client-go/v4"
 	unleashContext "github.com/Unleash/unleash-client-go/v4/context"
 	"github.com/google/uuid"
+	"log/slog"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"os"
 	"regexp"
 	"strings"
 	"time"
@@ -98,6 +99,8 @@ type Unleash struct {
 	featureToggles []FeatureToggle
 }
 
+var logger = slog.New(slog.NewJSONHandler(os.Stdout, nil))
+
 func New(_ context.Context, next http.Handler, config *Config, name string) (http.Handler, error) {
 	u := uuid.New()
 	err := unleash.Initialize(
@@ -153,11 +156,12 @@ func New(_ context.Context, next http.Handler, config *Config, name string) (htt
 }
 
 func (u *Unleash) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
-	fmt.Println(jsonMessageFrom("Executing unleash plugin"))
+
+	logger.Info("Executing unleash plugin")
 	for _, toggle := range u.featureToggles {
-		fmt.Println(jsonMessageFrom(fmt.Sprintf("Evaluating feature flag: %s", toggle.feature)))
+		logger.Info(fmt.Sprintf("Evaluating feature flag: %s", toggle.feature))
 		if evaluateFeatureToggle(toggle, req) {
-			fmt.Println(jsonMessageFrom(fmt.Sprintf("Executing feature flag: %s", toggle.feature)))
+			logger.Info(fmt.Sprintf("Executing feature flag: %s", toggle.feature))
 			evaluateHeadersFromToggle(rw, req, toggle)
 			evaluatePathFromToggle(toggle, req)
 			if evaluateHostFromToggle(rw, req, toggle) {
@@ -171,7 +175,7 @@ func (u *Unleash) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 
 func evaluateHostFromToggle(rw http.ResponseWriter, req *http.Request, toggle FeatureToggle) bool {
 	if toggle.host != nil {
-		fmt.Println(jsonMessageFrom(fmt.Sprintf("Toggle with feature flag: %s rewrite current host with value: %s for: %s", toggle.feature, req.Host, toggle.host.rewrite)))
+		logger.Info(fmt.Sprintf("Toggle with feature flag: %s rewrite current host with value: %s for: %s", toggle.feature, req.Host, toggle.host.rewrite))
 		var redirectUrl = &url.URL{
 			Host:   hostFrom(toggle.host.rewrite),
 			Scheme: schemeFrom(toggle.host.rewrite),
@@ -190,10 +194,10 @@ func evaluateHeadersFromToggle(rw http.ResponseWriter, req *http.Request, toggle
 		for _, header := range toggle.headers {
 			switch header.context {
 			case RequestHeader:
-				fmt.Println(jsonMessageFrom(fmt.Sprintf("Toggle with feature flag: %s set request header: %s with value: %s", toggle.feature, header.key, header.value)))
+				logger.Info(fmt.Sprintf("Toggle with feature flag: %s set request header: %s with value: %s", toggle.feature, header.key, header.value))
 				req.Header.Set(header.key, header.value)
 			case ResponseHeader:
-				fmt.Println(jsonMessageFrom(fmt.Sprintf("Toggle with feature flag: %s set response header: %s with value: %s", toggle.feature, header.key, header.value)))
+				logger.Info(fmt.Sprintf("Toggle with feature flag: %s set response header: %s with value: %s", toggle.feature, header.key, header.value))
 				rw.Header().Set(header.key, header.value)
 			}
 		}
@@ -202,7 +206,7 @@ func evaluateHeadersFromToggle(rw http.ResponseWriter, req *http.Request, toggle
 
 func evaluatePathFromToggle(toggle FeatureToggle, req *http.Request) {
 	if toggle.path != nil {
-		fmt.Println(jsonMessageFrom(fmt.Sprintf("Toggle with feature flag: %s rewrite current path with value: %s for: %s", toggle.feature, req.URL.Path, toggle.path.rewrite)))
+		logger.Info(fmt.Sprintf("Toggle with feature flag: %s rewrite current path with value: %s for: %s", toggle.feature, req.URL.Path, toggle.path.rewrite))
 		req.URL.Path = replaceNamedParams(toggle.path.value, req.URL.Path, toggle.path.rewrite)
 		req.RequestURI = req.URL.RequestURI()
 	}
@@ -213,11 +217,6 @@ func intervalFrom(interval *int) time.Duration {
 		return time.Duration(*interval) * time.Second
 	}
 	return time.Second * DefaultInterval
-}
-
-func jsonMessageFrom(message string) string {
-	result, _ := json.Marshal(LogEntry{Message: message, Date: time.Now()})
-	return string(result)
 }
 
 func hostFrom(rewrite string) string {
