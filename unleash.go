@@ -83,9 +83,7 @@ func (u *Unleash) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 			logger.Info(fmt.Sprintf("Executing feature flag: %s", toggle.feature))
 			toggle.setHeaders(rw, req)
 			toggle.rewritePath(req)
-			if toggle.rewriteHost(rw, req) {
-				return
-			}
+			u.next, req = toggle.rewriteHost(u.next, req)
 			break
 		}
 	}
