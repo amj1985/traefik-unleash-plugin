@@ -9,6 +9,15 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"regexp"
+	"strings"
+)
+
+const (
+	SchemeHTTP     = "http"
+	SchemeHTTPS    = "https"
+	RequestHeader  = "request"
+	ResponseHeader = "response"
+	UserIdHeader   = "X-Unleash-User-Id"
 )
 
 type Path struct {
@@ -89,4 +98,37 @@ func (t *FeatureToggle) appliesToRequest(req *http.Request) bool {
 		(t.path == nil || t.path.value.MatchString(req.URL.Path)) &&
 		(t.headers == nil || len(t.headers) > 0) &&
 		t.enabled(req)
+}
+
+func hostFrom(rewrite string) string {
+	parsedURL, _ := url.Parse(rewrite)
+	if parsedURL.Host == "" {
+		return rewrite
+	}
+	return parsedURL.Host
+}
+
+func schemeFrom(rewrite string) string {
+	parsedURL, _ := url.Parse(rewrite)
+	if isValidScheme(parsedURL.Scheme) {
+		return parsedURL.Scheme
+	}
+	return SchemeHTTP
+}
+
+func isValidScheme(scheme string) bool {
+	return scheme != "" && (scheme == SchemeHTTP || scheme == SchemeHTTPS)
+}
+
+func replaceNamedParams(r *regexp.Regexp, path string, rewrite string) string {
+	m := r.FindStringSubmatch(path)
+	if len(m) > 0 {
+		for i, name := range r.SubexpNames() {
+			if len(name) > 0 {
+				rewrite = strings.Replace(rewrite, ":"+name, m[i], -1)
+			}
+		}
+	}
+	remainingPath := r.ReplaceAllString(path, "")
+	return rewrite + remainingPath
 }

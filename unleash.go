@@ -7,26 +7,12 @@ import (
 	"github.com/google/uuid"
 	"log/slog"
 	"net/http"
-	"net/url"
 	"os"
 	"regexp"
-	"strings"
 	"time"
 )
 
-const (
-	SchemeHTTP      = "http"
-	SchemeHTTPS     = "https"
-	DefaultInterval = 10
-	RequestHeader   = "request"
-	ResponseHeader  = "response"
-	UserIdHeader    = "X-Unleash-User-Id"
-)
-
-type LogEntry struct {
-	Message string    `json:"message"`
-	Date    time.Time `json:"date"`
-}
+const DefaultInterval = 10
 
 type Config struct {
 	Url      string `yaml:"url"`
@@ -67,18 +53,46 @@ var logger = slog.New(slog.NewJSONHandler(os.Stdout, nil))
 
 func New(_ context.Context, next http.Handler, config *Config, name string) (http.Handler, error) {
 	u := uuid.New()
-	err := unleash.Initialize(
+
+	if err := unleash.Initialize(
 		unleash.WithRefreshInterval(intervalFrom(config.Interval)),
 		unleash.WithMetricsInterval(intervalFrom(config.Metrics.Interval)),
 		unleash.WithAppName(config.App),
 		unleash.WithUrl(config.Url),
 		unleash.WithInstanceId(u.String()),
-	)
-	if err != nil {
+	); err != nil {
 		_ = unleash.Close()
 		return nil, err
 	}
+
 	unleash.WaitForReady()
+
+	return &Unleash{
+		next:           next,
+		name:           name,
+		featureToggles: readConfig(config),
+	}, nil
+}
+
+func (u *Unleash) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
+
+	logger.Info("Executing unleash plugin")
+	for _, toggle := range u.featureToggles {
+		logger.Info(fmt.Sprintf("Evaluating feature flag: %s", toggle.feature))
+		if toggle.appliesToRequest(req) {
+			logger.Info(fmt.Sprintf("Executing feature flag: %s", toggle.feature))
+			toggle.setHeaders(rw, req)
+			toggle.rewritePath(req)
+			if toggle.rewriteHost(rw, req) {
+				return
+			}
+			break
+		}
+	}
+	u.next.ServeHTTP(rw, req)
+}
+
+func readConfig(config *Config) []FeatureToggle {
 	var toggles []FeatureToggle
 	for _, t := range config.Toggles {
 		var path *Path
@@ -112,29 +126,8 @@ func New(_ context.Context, next http.Handler, config *Config, name string) (htt
 			headers: headersCollection,
 		})
 	}
-	return &Unleash{
-		next:           next,
-		name:           name,
-		featureToggles: toggles,
-	}, nil
-}
 
-func (u *Unleash) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
-
-	logger.Info("Executing unleash plugin")
-	for _, toggle := range u.featureToggles {
-		logger.Info(fmt.Sprintf("Evaluating feature flag: %s", toggle.feature))
-		if toggle.appliesToRequest(req) {
-			logger.Info(fmt.Sprintf("Executing feature flag: %s", toggle.feature))
-			toggle.setHeaders(rw, req)
-			toggle.rewritePath(req)
-			if toggle.rewriteHost(rw, req) {
-				return
-			}
-			break
-		}
-	}
-	u.next.ServeHTTP(rw, req)
+	return toggles
 }
 
 func intervalFrom(interval *int) time.Duration {
@@ -142,37 +135,4 @@ func intervalFrom(interval *int) time.Duration {
 		return time.Duration(*interval) * time.Second
 	}
 	return time.Second * DefaultInterval
-}
-
-func hostFrom(rewrite string) string {
-	parsedURL, _ := url.Parse(rewrite)
-	if parsedURL.Host == "" {
-		return rewrite
-	}
-	return parsedURL.Host
-}
-
-func schemeFrom(rewrite string) string {
-	parsedURL, _ := url.Parse(rewrite)
-	if isValidScheme(parsedURL.Scheme) {
-		return parsedURL.Scheme
-	}
-	return SchemeHTTP
-}
-
-func isValidScheme(scheme string) bool {
-	return scheme != "" && (scheme == SchemeHTTP || scheme == SchemeHTTPS)
-}
-
-func replaceNamedParams(r *regexp.Regexp, path string, rewrite string) string {
-	m := r.FindStringSubmatch(path)
-	if len(m) > 0 {
-		for i, name := range r.SubexpNames() {
-			if len(name) > 0 {
-				rewrite = strings.Replace(rewrite, ":"+name, m[i], -1)
-			}
-		}
-	}
-	remainingPath := r.ReplaceAllString(path, "")
-	return rewrite + remainingPath
 }
