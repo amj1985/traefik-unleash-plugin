@@ -77,19 +77,18 @@ func New(_ context.Context, next http.Handler, config *Config, name string) (htt
 func (u *Unleash) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 
 	logger.Info("Executing unleash plugin")
+	next := u.next
 	for _, toggle := range u.featureToggles {
 		logger.Info(fmt.Sprintf("Evaluating feature flag: %s", toggle.feature))
 		if toggle.appliesToRequest(req) {
 			logger.Info(fmt.Sprintf("Executing feature flag: %s", toggle.feature))
 			toggle.setHeaders(rw, req)
 			toggle.rewritePath(req)
-			if toggle.rewriteHost(rw, req) {
-				return
-			}
+			next, req = toggle.rewriteHost(next, req)
 			break
 		}
 	}
-	u.next.ServeHTTP(rw, req)
+	next.ServeHTTP(rw, req)
 }
 
 func readConfig(config *Config) []FeatureToggle {

@@ -54,20 +54,18 @@ func (t *FeatureToggle) enabled(r *http.Request) bool {
 	return unleash.IsEnabled(t.feature)
 }
 
-func (t *FeatureToggle) rewriteHost(rw http.ResponseWriter, req *http.Request) bool {
+func (t *FeatureToggle) rewriteHost(next http.Handler, req *http.Request) (http.Handler, *http.Request) {
 	if t.host != nil {
 		logger.Info(fmt.Sprintf("Toggle with feature flag: %s rewrite current host with value: %s for: %s", t.feature, req.Host, t.host.rewrite))
-		var redirectUrl = &url.URL{
+		redirect := &url.URL{
 			Host:   hostFrom(t.host.rewrite),
 			Scheme: schemeFrom(t.host.rewrite),
 		}
-		var newRequest = req.Clone(context.Background())
-		newRequest.Host = redirectUrl.Host
-		var nextHandler = httputil.NewSingleHostReverseProxy(redirectUrl)
-		nextHandler.ServeHTTP(rw, newRequest)
-		return true
+		var rr = req.Clone(context.Background())
+		rr.Host = redirect.Host
+		return httputil.NewSingleHostReverseProxy(redirect), rr
 	}
-	return false
+	return next, req
 }
 
 func (t *FeatureToggle) setHeaders(rw http.ResponseWriter, req *http.Request) {
