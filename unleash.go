@@ -37,6 +37,7 @@ type Config struct {
 		} `json:"host"`
 		Feature string `yaml:"feature"`
 	} `json:"toggles"`
+	OfflineMode bool `yaml:"offline_mode"`
 }
 
 func CreateConfig() *Config {
@@ -52,6 +53,14 @@ type Unleash struct {
 var logger = slog.New(slog.NewJSONHandler(os.Stdout, nil))
 
 func New(_ context.Context, next http.Handler, config *Config, name string) (http.Handler, error) {
+
+	if config.OfflineMode {
+		return &Unleash{
+			next:           next,
+			name:           name,
+			featureToggles: []FeatureToggle{},
+		}, nil
+	}
 	u := uuid.New()
 
 	if err := unleash.Initialize(
