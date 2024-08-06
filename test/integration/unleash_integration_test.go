@@ -15,6 +15,23 @@ func TestMain(m *testing.M) {
 	fixture.Setup(m)
 }
 
+func TestIntegrationDoNotRewritePathWhenUsingOffline(t *testing.T) {
+	conf := `
+url: "http://localhost:4242/api/"
+app: "test-app"
+interval: 10
+offline_mode: true
+metrics:
+  interval: 10
+toggles:
+  - feature: "test-toggle-path"
+    path:
+      value: "/john"
+      rewrite: "/doe"
+`
+	testIntegrationRewrite(t, conf, "http://localhost/john", "", "localhost", "/doe", nil, nil)
+}
+
 func TestIntegrationRewriteHostAndHeadersAndPathWhenToggleIsActiveUsingUserId(t *testing.T) {
 	conf := `url: "http://localhost:4242/api/"
 app: "test-app"
@@ -62,12 +79,13 @@ toggles:
       value: "localhost"
       rewrite: "whoami2"
 `
-	testIntegrationRewrite(t, conf, "http://localhost/bar", "", "whoami2", "/foo", nil, nil)
+	testIntegrationRewrite(t, conf, "http://localhost/bar", "", "whoami2", "/john", nil, nil)
 }
 
 func TestIntegrationRewritePathWhenToggleIsActive(t *testing.T) {
 	conf := `
 url: "http://localhost:4242/api/"
+offline_mode: true
 app: "test-app"
 interval: 10
 metrics:
