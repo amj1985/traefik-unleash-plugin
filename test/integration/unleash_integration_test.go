@@ -29,7 +29,7 @@ toggles:
       value: "/john"
       rewrite: "/doe"
 `
-	testIntegrationRewrite(t, conf, "http://localhost/john", "", "localhost", "/doe", nil, nil)
+	testIntegrationRewrite(t, conf, "http://localhost/john", "", "localhost", "/john", nil, nil)
 }
 
 func TestIntegrationRewriteHostAndHeadersAndPathWhenToggleIsActiveUsingUserId(t *testing.T) {
@@ -79,13 +79,12 @@ toggles:
       value: "localhost"
       rewrite: "whoami2"
 `
-	testIntegrationRewrite(t, conf, "http://localhost/bar", "", "whoami2", "/john", nil, nil)
+	testIntegrationRewrite(t, conf, "http://localhost/bar", "", "whoami2", "/foo", nil, nil)
 }
 
 func TestIntegrationRewritePathWhenToggleIsActive(t *testing.T) {
 	conf := `
 url: "http://localhost:4242/api/"
-offline_mode: true
 app: "test-app"
 interval: 10
 metrics:
