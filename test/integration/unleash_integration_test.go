@@ -20,7 +20,7 @@ func TestIntegrationDoNotRewritePathWhenUsingOffline(t *testing.T) {
 url: "http://localhost:4242/api/"
 app: "test-app"
 interval: 10
-offline_mode: true
+offlineMode: true
 metrics:
   interval: 10
 toggles:
