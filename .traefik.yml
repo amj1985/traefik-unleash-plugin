@@ -20,4 +20,4 @@ testData:
       path:
         value: "/foo"
         rewrite: "/bar"
-  offline_mode: true
+  offlineMode: true

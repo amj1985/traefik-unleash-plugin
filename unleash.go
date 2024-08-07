@@ -37,7 +37,7 @@ type Config struct {
 		} `json:"host"`
 		Feature string `yaml:"feature"`
 	} `json:"toggles"`
-	OfflineMode bool `yaml:"offline_mode"`
+	OfflineMode bool `yaml:"offlineMode"`
 }
 
 func CreateConfig() *Config {
