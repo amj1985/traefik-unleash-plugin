@@ -26,6 +26,7 @@ http:
           interval: 10
           metrics:
             interval: 10
+          offline_mode: false
           toggles:
             - feature: "test-toggle-user-id"
               path:
