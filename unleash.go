@@ -41,7 +41,7 @@ type Config struct {
 }
 
 func CreateConfig() *Config {
-	return &Config{OfflineMode: true}
+	return &Config{}
 }
 
 type Unleash struct {
