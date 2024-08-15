@@ -23,18 +23,18 @@ type Config struct {
 	} `json:"metrics"`
 	Toggles []struct {
 		Headers *[]struct {
-			Key     string `yaml:"key"`
-			Value   string `yaml:"value"`
+			Key     string `yaml:"headerName"`
+			Value   string `yaml:"pathMatcher"`
 			Context string `yaml:"context"`
-		} `json:"headers"`
+		} `json:"headerModifiers"`
 		Path *struct {
-			Value   string `yaml:"value"`
-			Rewrite string `yaml:"rewrite"`
-		} `json:"path"`
+			Value   string `yaml:"pathMatcher"`
+			Rewrite string `yaml:"rewriteRule"`
+		} `json:"pathRewrite"`
 		Host *struct {
-			Value   string `yaml:"value"`
-			Rewrite string `yaml:"rewrite"`
-		} `json:"host"`
+			Value   string `yaml:"pathMatcher"`
+			Rewrite string `yaml:"rewriteRule"`
+		} `json:"hostRewrite"`
 		Feature string `yaml:"feature"`
 	} `json:"toggles"`
 	OfflineMode bool `yaml:"offlineMode"`
@@ -103,35 +103,35 @@ func (u *Unleash) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 func readConfig(config *Config) []FeatureToggle {
 	var toggles []FeatureToggle
 	for _, t := range config.Toggles {
-		var path *Path
+		var path *PathRewrite
 		if t.Path != nil {
-			path = &Path{
-				value:   regexp.MustCompile(t.Path.Value),
-				rewrite: t.Path.Rewrite,
+			path = &PathRewrite{
+				pathMatcher: regexp.MustCompile(t.Path.Value),
+				rewriteRule: t.Path.Rewrite,
 			}
 		}
-		var host *Host
+		var host *HostRewrite
 		if t.Host != nil {
-			host = &Host{
-				value:   regexp.MustCompile(t.Host.Value),
-				rewrite: t.Host.Rewrite,
+			host = &HostRewrite{
+				hostMatcher: regexp.MustCompile(t.Host.Value),
+				rewriteRule: t.Host.Rewrite,
 			}
 		}
-		var headersCollection []*Header
+		var headersCollection []*HeaderModifier
 		if t.Headers != nil {
 			for _, h := range *t.Headers {
-				headersCollection = append(headersCollection, &Header{
-					key:     h.Key,
-					value:   h.Value,
-					context: h.Context,
+				headersCollection = append(headersCollection, &HeaderModifier{
+					headerName:  h.Key,
+					headerValue: h.Value,
+					context:     h.Context,
 				})
 			}
 		}
 		toggles = append(toggles, FeatureToggle{
-			path:    path,
-			host:    host,
-			feature: t.Feature,
-			headers: headersCollection,
+			pathRewrite:     path,
+			hostRewrite:     host,
+			feature:         t.Feature,
+			headerModifiers: headersCollection,
 		})
 	}
 

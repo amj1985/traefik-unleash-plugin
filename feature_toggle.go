@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/Unleash/unleash-client-go/v4"
-	unleashContext "github.com/Unleash/unleash-client-go/v4/context"
+	uctx "github.com/Unleash/unleash-client-go/v4/context"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -20,33 +20,33 @@ const (
 	UserIdHeader   = "X-Unleash-User-Id"
 )
 
-type Path struct {
-	value   *regexp.Regexp
-	rewrite string
+type PathRewrite struct {
+	pathMatcher *regexp.Regexp
+	rewriteRule string
 }
 
-type Host struct {
-	value   *regexp.Regexp
-	rewrite string
+type HostRewrite struct {
+	hostMatcher *regexp.Regexp
+	rewriteRule string
 }
 
-type Header struct {
-	key     string
-	value   string
-	context string
+type HeaderModifier struct {
+	headerName  string
+	headerValue string
+	context     string
 }
 
 type FeatureToggle struct {
-	path    *Path
-	feature string
-	host    *Host
-	headers []*Header
+	pathRewrite     *PathRewrite
+	feature         string
+	hostRewrite     *HostRewrite
+	headerModifiers []*HeaderModifier
 }
 
 func (t *FeatureToggle) enabled(r *http.Request) bool {
 	userId := r.Header.Get(UserIdHeader)
 	if userId != "" {
-		ctx := unleashContext.Context{
+		ctx := uctx.Context{
 			UserId: userId,
 		}
 		return unleash.IsEnabled(t.feature, unleash.WithContext(ctx))
@@ -55,11 +55,11 @@ func (t *FeatureToggle) enabled(r *http.Request) bool {
 }
 
 func (t *FeatureToggle) rewriteHost(next http.Handler, req *http.Request) (http.Handler, *http.Request) {
-	if t.host != nil {
-		logger.Info(fmt.Sprintf("Toggle with feature flag: %s rewrite current host with value: %s for: %s", t.feature, req.Host, t.host.rewrite))
+	if t.hostRewrite != nil {
+		logger.Info(fmt.Sprintf("Toggle with feature flag: %s rewriteRule current hostRewrite with pathMatcher: %s for: %s", t.feature, req.Host, t.hostRewrite.rewriteRule))
 		redirect := &url.URL{
-			Host:   hostFrom(t.host.rewrite),
-			Scheme: schemeFrom(t.host.rewrite),
+			Host:   parseHost(t.hostRewrite.rewriteRule),
+			Scheme: parseScheme(t.hostRewrite.rewriteRule),
 		}
 		var rr = req.Clone(context.Background())
 		rr.Host = redirect.Host
@@ -69,36 +69,36 @@ func (t *FeatureToggle) rewriteHost(next http.Handler, req *http.Request) (http.
 }
 
 func (t *FeatureToggle) setHeaders(rw http.ResponseWriter, req *http.Request) {
-	if t.headers != nil {
-		for _, header := range t.headers {
+	if t.headerModifiers != nil {
+		for _, header := range t.headerModifiers {
 			switch header.context {
 			case RequestHeader:
-				logger.Info(fmt.Sprintf("Toggle with feature flag: %s set request header: %s with value: %s", t.feature, header.key, header.value))
-				req.Header.Set(header.key, header.value)
+				logger.Info(fmt.Sprintf("Toggle with feature flag: %s set request header: %s with pathMatcher: %s", t.feature, header.headerName, header.headerValue))
+				req.Header.Set(header.headerName, header.headerValue)
 			case ResponseHeader:
-				logger.Info(fmt.Sprintf("Toggle with feature flag: %s set response header: %s with value: %s", t.feature, header.key, header.value))
-				rw.Header().Set(header.key, header.value)
+				logger.Info(fmt.Sprintf("Toggle with feature flag: %s set response header: %s with pathMatcher: %s", t.feature, header.headerName, header.headerValue))
+				rw.Header().Set(header.headerName, header.headerValue)
 			}
 		}
 	}
 }
 
 func (t *FeatureToggle) rewritePath(req *http.Request) {
-	if t.path != nil {
-		logger.Info(fmt.Sprintf("Toggle with feature flag: %s rewrite current path with value: %s for: %s", t.feature, req.URL.Path, t.path.rewrite))
-		req.URL.Path = replaceNamedParams(t.path.value, req.URL.Path, t.path.rewrite)
+	if t.pathRewrite != nil {
+		logger.Info(fmt.Sprintf("Toggle with feature flag: %s rewriteRule current pathRewrite with pathMatcher: %s for: %s", t.feature, req.URL.Path, t.pathRewrite.rewriteRule))
+		req.URL.Path = replaceNamedParams(t.pathRewrite.pathMatcher, req.URL.Path, t.pathRewrite.rewriteRule)
 		req.RequestURI = req.URL.RequestURI()
 	}
 }
 
 func (t *FeatureToggle) appliesToRequest(req *http.Request) bool {
-	return (t.host == nil || t.host.value.MatchString(req.Host)) &&
-		(t.path == nil || t.path.value.MatchString(req.URL.Path)) &&
-		(t.headers == nil || len(t.headers) > 0) &&
+	return (t.hostRewrite == nil || t.hostRewrite.hostMatcher.MatchString(req.Host)) &&
+		(t.pathRewrite == nil || t.pathRewrite.pathMatcher.MatchString(req.URL.Path)) &&
+		(t.headerModifiers == nil || len(t.headerModifiers) > 0) &&
 		t.enabled(req)
 }
 
-func hostFrom(rewrite string) string {
+func parseHost(rewrite string) string {
 	parsedURL, _ := url.Parse(rewrite)
 	if parsedURL.Host == "" {
 		return rewrite
@@ -106,7 +106,7 @@ func hostFrom(rewrite string) string {
 	return parsedURL.Host
 }
 
-func schemeFrom(rewrite string) string {
+func parseScheme(rewrite string) string {
 	parsedURL, _ := url.Parse(rewrite)
 	if isValidScheme(parsedURL.Scheme) {
 		return parsedURL.Scheme
