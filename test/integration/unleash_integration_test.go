@@ -43,7 +43,7 @@ toggles:
     pathRewrite:
       pathMatcher: "/foo"
       rewriteRule: "/bar"
-    host:
+    hostRewrite:
       hostMatcher: "localhost"
       rewriteRule: "whoami2"
     headerModifiers:
@@ -139,7 +139,7 @@ metrics:
   interval: 10
 toggles:
   - feature: "test-toggle-host"
-    host:
+    hostRewrite:
       hostMatcher: "localhost"
       rewriteRule: "whoami1"
 `
