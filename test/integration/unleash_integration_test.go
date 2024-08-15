@@ -25,9 +25,9 @@ metrics:
   interval: 10
 toggles:
   - feature: "test-toggle-path"
-    path:
-      value: "/john"
-      rewrite: "/doe"
+    pathRewrite:
+      pathMatcher: "/john"
+      rewriteRule: "/doe"
 `
 	testIntegrationRewrite(t, conf, "http://localhost/john", "", "localhost", "/john", nil, nil)
 }
@@ -40,18 +40,18 @@ metrics:
   interval: 10
 toggles:
   - feature: "test-toggle-user-id"
-    path:
-      value: "/foo"
-      rewrite: "/bar"
+    pathRewrite:
+      pathMatcher: "/foo"
+      rewriteRule: "/bar"
     host:
-      value: "localhost"
-      rewrite: "whoami2"
-    headers:
-      - key: "X-Foo"
-        value: "Bar"
+      hostMatcher: "localhost"
+      rewriteRule: "whoami2"
+    headerModifiers:
+      - headerName: "X-Foo"
+        headerValue: "Bar"
         context: "request"
-      - key: "X-Served-By"
-        value: "whoami2"
+      - headerName: "X-Served-By"
+        headerValue: "whoami2"
         context: "response"`
 
 	expectedRequestHeaders := map[string]string{
@@ -72,12 +72,12 @@ metrics:
   interval: 10
 toggles:
   - feature: "test-toggle"
-    path:
-      value: "/bar"
-      rewrite: "/foo"
-    host:
-      value: "localhost"
-      rewrite: "whoami2"
+    pathRewrite:
+      pathMatcher: "/bar"
+      rewriteRule: "/foo"
+    hostRewrite:
+      hostMatcher: "localhost"
+      rewriteRule: "whoami2"
 `
 	testIntegrationRewrite(t, conf, "http://localhost/bar", "", "whoami2", "/foo", nil, nil)
 }
@@ -91,9 +91,9 @@ metrics:
   interval: 10
 toggles:
   - feature: "test-toggle-path"
-    path:
-      value: "/john"
-      rewrite: "/doe"
+    pathRewrite:
+      pathMatcher: "/john"
+      rewriteRule: "/doe"
 `
 	testIntegrationRewrite(t, conf, "http://localhost/john", "", "localhost", "/doe", nil, nil)
 }
@@ -107,9 +107,9 @@ metrics:
   interval: 10
 toggles:
   - feature: "test-toggle-flexible-rollout-100"
-    path:
-      value: "/hello"
-      rewrite: "/world"
+    pathRewrite:
+      pathMatcher: "/hello"
+      rewriteRule: "/world"
 `
 	testIntegrationRewrite(t, conf, "http://localhost/hello", "", "localhost", "/world", nil, nil)
 }
@@ -123,9 +123,9 @@ metrics:
   interval: 10
 toggles:
   - feature: "test-toggle-flexible-rollout-0"
-    path:
-      value: "/alice"
-      rewrite: "/bob"
+    pathRewrite:
+      pathMatcher: "/alice"
+      rewriteRule: "/bob"
 `
 	testIntegrationRewrite(t, conf, "http://localhost/alice", "", "localhost", "/alice", nil, nil)
 }
@@ -140,8 +140,8 @@ metrics:
 toggles:
   - feature: "test-toggle-host"
     host:
-      value: "localhost"
-      rewrite: "whoami1"
+      hostMatcher: "localhost"
+      rewriteRule: "whoami1"
 `
 	testIntegrationRewrite(t, conf, "http://localhost", "", "whoami1", "", nil, nil)
 }

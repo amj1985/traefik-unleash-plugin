@@ -22,18 +22,18 @@ type Config struct {
 		Interval *int `yaml:"interval"`
 	} `json:"metrics"`
 	Toggles []struct {
-		Headers *[]struct {
-			Key     string `yaml:"headerName"`
-			Value   string `yaml:"pathMatcher"`
-			Context string `yaml:"context"`
+		HeaderModifiers *[]struct {
+			HeaderName  string `yaml:"headerName"`
+			HeaderValue string `yaml:"headerValue"`
+			Context     string `yaml:"context"`
 		} `json:"headerModifiers"`
-		Path *struct {
-			Value   string `yaml:"pathMatcher"`
-			Rewrite string `yaml:"rewriteRule"`
+		PathRewrite *struct {
+			PathMatcher string `yaml:"pathMatcher"`
+			RewriteRule string `yaml:"rewriteRule"`
 		} `json:"pathRewrite"`
-		Host *struct {
-			Value   string `yaml:"pathMatcher"`
-			Rewrite string `yaml:"rewriteRule"`
+		HostRewrite *struct {
+			HostMatcher string `yaml:"hostMatcher"`
+			RewriteRule string `yaml:"rewriteRule"`
 		} `json:"hostRewrite"`
 		Feature string `yaml:"feature"`
 	} `json:"toggles"`
@@ -104,25 +104,25 @@ func readConfig(config *Config) []FeatureToggle {
 	var toggles []FeatureToggle
 	for _, t := range config.Toggles {
 		var path *PathRewrite
-		if t.Path != nil {
+		if t.PathRewrite != nil {
 			path = &PathRewrite{
-				pathMatcher: regexp.MustCompile(t.Path.Value),
-				rewriteRule: t.Path.Rewrite,
+				pathMatcher: regexp.MustCompile(t.PathRewrite.PathMatcher),
+				rewriteRule: t.PathRewrite.RewriteRule,
 			}
 		}
 		var host *HostRewrite
-		if t.Host != nil {
+		if t.HostRewrite != nil {
 			host = &HostRewrite{
-				hostMatcher: regexp.MustCompile(t.Host.Value),
-				rewriteRule: t.Host.Rewrite,
+				hostMatcher: regexp.MustCompile(t.HostRewrite.HostMatcher),
+				rewriteRule: t.HostRewrite.RewriteRule,
 			}
 		}
 		var headersCollection []*HeaderModifier
-		if t.Headers != nil {
-			for _, h := range *t.Headers {
+		if t.HeaderModifiers != nil {
+			for _, h := range *t.HeaderModifiers {
 				headersCollection = append(headersCollection, &HeaderModifier{
-					headerName:  h.Key,
-					headerValue: h.Value,
+					headerName:  h.HeaderName,
+					headerValue: h.HeaderValue,
 					context:     h.Context,
 				})
 			}

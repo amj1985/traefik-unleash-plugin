@@ -37,23 +37,23 @@ To configure this middleware, you need to define the parameters in the `dynamic.
 
 ### Input Parameters
 
-| Parameter                     | Type    | Required | Description                                                          |
-|-------------------------------|---------|----------|----------------------------------------------------------------------|
-| `url`                         | string  | Yes      | URL of the Unleash server                                            |
-| `app`                         | string  | Yes      | Name of the application in Unleash                                   |
-| `interval`                    | int     | No       | Update interval in seconds                                           |
-| `metrics.interval`            | int     | No       | Metrics reporting interval in seconds                                |
-| `toggles`                     | list    | Yes      | List of feature flag toggles                                         |
-| `toggles[].feature`           | string  | Yes      | Name of the feature flag                                             |
-| `toggles[].path.value`        | string  | No       | Path to be validated                                                 |
-| `toggles[].path.rewrite`      | string  | No       | Path to redirect to if the feature flag is active                    |
-| `toggles[].host.value`        | string  | No       | Host to be validated                                                 |
-| `toggles[].host.rewrite`      | string  | No       | Host to redirect to if the feature flag is active                    |
-| `toggles[].headers`           | list    | No       | List of headers to be added to the request or response               |
-| `toggles[].headers[].key`     | string  | Yes      | Header key                                                           |
-| `toggles[].headers[].value`   | string  | Yes      | Header value                                                         |
-| `toggles[].headers[].context` | string  | Yes      | Context of the header (either "request" or "response")               |
-| `offlineMode`                 | boolean | No       | The plugin is configured in local mode without external dependencies |
+| Parameter                                 | Type    | Required | Description                                                          |
+|-------------------------------------------|---------|----------|----------------------------------------------------------------------|
+| `url`                                     | string  | Yes      | URL of the Unleash server                                            |
+| `app`                                     | string  | Yes      | Name of the application in Unleash                                   |
+| `interval`                                | int     | No       | Update interval in seconds                                           |
+| `metrics.interval`                        | int     | No       | Metrics reporting interval in seconds                                |
+| `toggles`                                 | list    | Yes      | List of feature flag toggles                                         |
+| `toggles[].feature`                       | string  | Yes      | Name of the feature flag                                             |
+| `toggles[].pathRewrite.pathMatcher`       | string  | No       | Path to be validated                                                 |
+| `toggles[].pathRewrite.rewriteRule`       | string  | No       | Path to redirect to if the feature flag is active                    |
+| `toggles[].hostRewrite.hostMatcher`       | string  | No       | Host to be validated                                                 |
+| `toggles[].hostRewrite.rewriteRule`       | string  | No       | Host to redirect to if the feature flag is active                    |
+| `toggles[].headerModifers`                | list    | No       | List of headers to be added to the request or response               |
+| `toggles[].headerModifiers[].headerName`  | string  | Yes      | Header key                                                           |
+| `toggles[].headerModifiers[].headerValue` | string  | Yes      | Header value                                                         |
+| `toggles[].headerModifiers[].context`     | string  | Yes      | Context of the header (either "request" or "response")               |
+| `offlineMode`                             | boolean | No       | The plugin is configured in local mode without external dependencies |
 
 
 ## Usage
@@ -69,27 +69,27 @@ To configure this middleware, you need to define the parameters in the `dynamic.
         interval: 10
       toggles:
         - feature: "test-toggle-user-id"
-          path:
-            value: "/foo"
-            rewrite: "/bar"
-          host:
-            value: "localhost"
-            rewrite: "whoami2"
+          pathRewrite:
+            pathMatcher: "/foo"
+            rewriteRule: "/bar"
+          hostRewrite:
+            hostMatcher: "localhost"
+            rewriteRule: "whoami2"
         - feature: "test-toggle"
-          path:
-            value: "/bar"
-            rewrite: "/foo"
-          host:
-            value: "localhost"
-            rewrite: "whoami2"
+          pathRewrite:
+            pathMatcher: "/bar"
+            rewriteRule: "/foo"
+          hostRewrite:
+            hostMatcher: "localhost"
+            rewriteRule: "whoami2"
         - feature: "test-toggle-path"
-          path:
-            value: "/john"
-            rewrite: "/doe"
+          pathRewrite:
+            pathMatcher: "/john"
+            rewriteRule: "/doe"
         - feature: "test-toggle-host"
-          host:
-            value: "localhost"
-            rewrite: "whoami1"
+          hostRewrite:
+            hostMatcher: "localhost"
+            rewriteRule: "whoami1"
     ```
 
 2. Apply the middleware to your routers in the Traefik configuration:
@@ -128,34 +128,34 @@ http:
             interval: 10
           toggles:
             - feature: "test-toggle-user-id"
-              path:
-                value: "/foo"
-                rewrite: "/bar"
-              host:
-                value: "localhost"
-                rewrite: "whoami2"
-              headers:
-                - key: "X-Foo"
-                  value: "Bar"
+              pathRewrite:
+                pathMatcher: "/foo"
+                rewriteRule: "/bar"
+              hostRewrite:
+                hostMatcher: "localhost"
+                rewriteRule: "whoami2"
+              headerModifiers:
+                - headerName: "X-Foo"
+                  headerValue: "Bar"
                   context: "request"
-                - key: "X-Served-By"
-                  value: "whoami2"
+                - headerName: "X-Served-By"
+                  headerValue: "whoami2"
                   context: "response"
             - feature: "test-toggle"
-              path:
-                value: "/bar"
-                rewrite: "/foo"
-              host:
+              pathRewrite:
+                pathMatcher: "/bar"
+                rewriteRule: "/foo"
+              hostRewrite:
                 value: "localhost"
                 rewrite: "whoami2"
             - feature: "test-toggle-path"
-              path:
-                value: "/john"
-                rewrite: "/doe"
+              pathRewrite:
+                pathMatcher: "/john"
+                rewriteRule: "/doe"
             - feature: "test-toggle-host"
-              host:
-                value: "localhost"
-                rewrite: "whoami1"
+              hostRewrite:
+                hostMatcher: "localhost"
+                rewriteRule: "whoami1"
 ```
 
 ## Contributing

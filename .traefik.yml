@@ -17,7 +17,7 @@ testData:
     interval: 10
   toggles:
     - feature: "test-toggle-path"
-      path:
-        value: "/foo"
-        rewrite: "/bar"
+      pathRewrite:
+        pathMatcher: "/foo"
+        rewriteRule: "/bar"
   offlineMode: true
