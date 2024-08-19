@@ -23,13 +23,7 @@ request based on input parameters defined in the YAML configuration file.
 
 ## Installation
 
-1. Clone this repository:
-    ```bash
-    git clone https://github.com/amj1985/traefik-unleash-plugin.git
-    cd traefik-unleash-plugin
-    ```
-
-2. Follow the [Traefik instructions for installing plugins](https://doc.traefik.io/traefik/plugins/overview/).
+Follow the [Traefik instructions for installing plugins](https://plugins.traefik.io/install).
 
 ## Configuration
 
