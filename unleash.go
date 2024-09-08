@@ -20,7 +20,7 @@ type Config struct {
 	Interval *int   `yaml:"interval"`
 	Metrics  *struct {
 		Interval *int `yaml:"interval"`
-	} `json:"metrics"`
+	} `yaml:"metrics"`
 	Toggles []struct {
 		HeaderModifiers *[]struct {
 			HeaderName  string `yaml:"headerName"`
@@ -30,13 +30,13 @@ type Config struct {
 		PathRewrite *struct {
 			PathMatcher string `yaml:"pathMatcher"`
 			RewriteRule string `yaml:"rewriteRule"`
-		} `json:"pathRewrite"`
+		} `yaml:"pathRewrite"`
 		HostRewrite *struct {
 			HostMatcher string `yaml:"hostMatcher"`
 			RewriteRule string `yaml:"rewriteRule"`
-		} `json:"hostRewrite"`
+		} `yaml:"hostRewrite"`
 		Feature string `yaml:"feature"`
-	} `json:"toggles"`
+	} `yaml:"toggles"`
 	OfflineMode bool `yaml:"offlineMode"`
 }
 
