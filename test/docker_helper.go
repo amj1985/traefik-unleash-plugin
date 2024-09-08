@@ -29,7 +29,7 @@ func Setup(m *testing.M) {
 
 	err := tc.
 		WithEnv(map[string]string{"TESTCONTAINERS_RYUK_DISABLED ": "true"}).
-		WaitForService("traefik", wait.ForHTTP("/foo")).
+		WaitForService("traefik", wait.ForHTTP("/dashboard")).
 		Up(context.Background())
 
 	if err != nil {

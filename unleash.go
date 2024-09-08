@@ -20,23 +20,23 @@ type Config struct {
 	Interval *int   `yaml:"interval"`
 	Metrics  *struct {
 		Interval *int `yaml:"interval"`
-	} `json:"metrics"`
+	} `yaml:"metrics"`
 	Toggles []struct {
-		Headers *[]struct {
-			Key     string `yaml:"key"`
-			Value   string `yaml:"value"`
-			Context string `yaml:"context"`
-		} `json:"headers"`
-		Path *struct {
-			Value   string `yaml:"value"`
-			Rewrite string `yaml:"rewrite"`
-		} `json:"path"`
-		Host *struct {
-			Value   string `yaml:"value"`
-			Rewrite string `yaml:"rewrite"`
-		} `json:"host"`
+		HeaderModifiers *[]struct {
+			HeaderName  string `yaml:"headerName"`
+			HeaderValue string `yaml:"headerValue"`
+			Context     string `yaml:"context"`
+		} `yaml:"headerModifiers"`
+		PathRewrite *struct {
+			PathMatcher string `yaml:"pathMatcher"`
+			RewriteRule string `yaml:"rewriteRule"`
+		} `yaml:"pathRewrite"`
+		HostRewrite *struct {
+			HostMatcher string `yaml:"hostMatcher"`
+			RewriteRule string `yaml:"rewriteRule"`
+		} `yaml:"hostRewrite"`
 		Feature string `yaml:"feature"`
-	} `json:"toggles"`
+	} `yaml:"toggles"`
 	OfflineMode bool `yaml:"offlineMode"`
 }
 
@@ -103,35 +103,35 @@ func (u *Unleash) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 func readConfig(config *Config) []FeatureToggle {
 	var toggles []FeatureToggle
 	for _, t := range config.Toggles {
-		var path *Path
-		if t.Path != nil {
-			path = &Path{
-				value:   regexp.MustCompile(t.Path.Value),
-				rewrite: t.Path.Rewrite,
+		var path *PathRewrite
+		if t.PathRewrite != nil {
+			path = &PathRewrite{
+				pathMatcher: regexp.MustCompile(t.PathRewrite.PathMatcher),
+				rewriteRule: t.PathRewrite.RewriteRule,
 			}
 		}
-		var host *Host
-		if t.Host != nil {
-			host = &Host{
-				value:   regexp.MustCompile(t.Host.Value),
-				rewrite: t.Host.Rewrite,
+		var host *HostRewrite
+		if t.HostRewrite != nil {
+			host = &HostRewrite{
+				hostMatcher: regexp.MustCompile(t.HostRewrite.HostMatcher),
+				rewriteRule: t.HostRewrite.RewriteRule,
 			}
 		}
-		var headersCollection []*Header
-		if t.Headers != nil {
-			for _, h := range *t.Headers {
-				headersCollection = append(headersCollection, &Header{
-					key:     h.Key,
-					value:   h.Value,
-					context: h.Context,
+		var headersCollection []*HeaderModifier
+		if t.HeaderModifiers != nil {
+			for _, h := range *t.HeaderModifiers {
+				headersCollection = append(headersCollection, &HeaderModifier{
+					headerName:  h.HeaderName,
+					headerValue: h.HeaderValue,
+					context:     h.Context,
 				})
 			}
 		}
 		toggles = append(toggles, FeatureToggle{
-			path:    path,
-			host:    host,
-			feature: t.Feature,
-			headers: headersCollection,
+			pathRewrite:     path,
+			hostRewrite:     host,
+			feature:         t.Feature,
+			headerModifiers: headersCollection,
 		})
 	}
 
