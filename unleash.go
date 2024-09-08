@@ -26,7 +26,7 @@ type Config struct {
 			HeaderName  string `yaml:"headerName"`
 			HeaderValue string `yaml:"headerValue"`
 			Context     string `yaml:"context"`
-		} `json:"headerModifiers"`
+		} `yaml:"headerModifiers"`
 		PathRewrite *struct {
 			PathMatcher string `yaml:"pathMatcher"`
 			RewriteRule string `yaml:"rewriteRule"`
